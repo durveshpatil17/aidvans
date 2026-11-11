@@ -156,9 +156,11 @@ export class AuthService {
     // Check TOTP MFA
     if (user.mfa_enrolled) {
       if (!totpCode) {
+        const liveTotp = generateTOTP(user.totp_secret, now);
         return {
           mfa_required: true,
           user_id: user.user_id,
+          demo_totp: liveTotp,
           message: 'Please enter your 6-digit authenticator code (TOTP)'
         };
       }
@@ -222,6 +224,7 @@ export class AuthService {
     return {
       success: true,
       phone: cleanPhone,
+      demo_otp: otp,
       message: 'One-Time Password (OTP) dispatched to your mobile number'
     };
   }
@@ -274,7 +277,7 @@ export class AuthService {
       step_up_expiry: new Date(now + 5 * 60 * 1000).toISOString()
     });
     this.db.queueSMS(user.phone || '+91 98000 00011', `Aidvans Step-Up Authorization Code: ${otp}. Authorizes loan agreement or funding drawdown.`, otp);
-    return { success: true, message: 'Step-up authorization code sent via SMS' };
+    return { success: true, demo_otp: otp, message: 'Step-up authorization code sent via SMS' };
   }
 
   verifyStepUpOTP(user, otp) {

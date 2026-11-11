@@ -89,6 +89,7 @@ export async function renderDemoConsole() {
                   <th>Role</th>
                   <th>User ID</th>
                   <th>Name</th>
+                  <th>Live TOTP Code</th>
                   <th>Workspace Login</th>
                 </tr>
               </thead>
@@ -98,6 +99,7 @@ export async function renderDemoConsole() {
                     <td><span class="badge badge-blue">${u.role}</span></td>
                     <td><code>${u.user_id}</code></td>
                     <td>${u.name}</td>
+                    <td><code style="font-size:14px;letter-spacing:2px;font-weight:700;color:var(--primary);background:#f1f5f9;padding:2px 6px;">${u.live_totp || 'N/A'}</code></td>
                     <td><a href="/${u.role === 'EXECUTIVE' ? 'executive' : (u.role.startsWith('HOSPITAL_') ? 'hospital' : (u.role === 'OPS_MANAGER' ? 'ops' : (u.role === 'COMPLIANCE_AUDITOR' ? 'compliance' : (u.role === 'SUPPORT_AGENT' ? 'support' : 'admin'))))}/login" class="btn btn-secondary btn-sm">Login</a></td>
                   </tr>
                 `).join('')}

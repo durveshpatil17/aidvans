@@ -16,11 +16,19 @@ export function renderWorkspaceLogin({ router, session }) {
       targetPhone = document.getElementById('borrower-phone').value.trim();
 
       try {
-        await api.post('/api/v1/auth/borrower/request-otp', { phone: targetPhone });
+        const res = await api.post('/api/v1/auth/borrower/request-otp', { phone: targetPhone });
         phoneStep.style.display = 'none';
         otpStep.style.display = 'block';
         document.getElementById('display-phone').textContent = targetPhone;
-        document.getElementById('borrower-otp').focus();
+        const otpInput = document.getElementById('borrower-otp');
+        if (res.demo_otp && otpInput) {
+          otpInput.value = res.demo_otp;
+          const hint = document.getElementById('borrower-otp-hint');
+          if (hint) {
+            hint.innerHTML = `Code delivered via SMS (Demo Code: <strong>${res.demo_otp}</strong>)`;
+          }
+        }
+        otpInput.focus();
       } catch (err) {
         errorBox.textContent = err.message;
         errorBox.style.display = 'block';
@@ -67,7 +75,7 @@ export function renderWorkspaceLogin({ router, session }) {
         </div>
 
         <div id="step-otp" style="display:none;">
-          <p style="font-size:13px;color:var(--text-muted);">Enter code sent to <strong id="display-phone"></strong>:</p>
+          <p id="borrower-otp-hint" style="font-size:13px;color:var(--text-muted);">Enter code sent to <strong id="display-phone"></strong>:</p>
           <div class="form-group">
             <label for="borrower-otp">6-Digit SMS Code</label>
             <input type="text" id="borrower-otp" maxlength="6" pattern="[0-9]{6}" placeholder="000000" style="letter-spacing:4px;font-family:var(--font-mono);font-size:18px;">

@@ -28,6 +28,12 @@ export function renderWorkspaceLogin({ router, session }) {
 
         if (res.mfa_required) {
           mfaContainer.style.display = 'block';
+          if (res.demo_totp) {
+            const totpInput = document.getElementById('totp-code');
+            if (totpInput) totpInput.value = res.demo_totp;
+            const hint = document.getElementById('totp-hint');
+            if (hint) hint.innerHTML = `Code from authenticator app (Demo Code: <strong>${res.demo_totp}</strong>)`;
+          }
           document.getElementById('totp-code').focus();
           return;
         }
@@ -65,6 +71,7 @@ export function renderWorkspaceLogin({ router, session }) {
           <div id="mfa-container" class="form-group" style="display:none;background:var(--bg-subtle);padding:12px;border:1px solid var(--border-light);border-radius:2px;">
             <label for="totp-code">6-Digit Authenticator Code (TOTP)</label>
             <input type="text" id="totp-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" style="letter-spacing:4px;font-family:var(--font-mono);font-size:16px;">
+            <small id="totp-hint" style="color:var(--text-subtle);margin-top:4px;display:block;">Code from your registered authenticator app or demo console</small>
           </div>
           <button type="submit" class="btn btn-primary" style="width:100%;margin-top:8px;">Sign In to Hospital Portal</button>
         </form>

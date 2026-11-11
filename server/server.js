@@ -19,7 +19,7 @@ import { ROLES, PERMISSIONS, WORKSPACE_ROUTES } from '../shared/permissions.js';
 import { LenderAAdapter } from './adapters/lenderA.js';
 import { LenderBAdapter } from './adapters/lenderB.js';
 import { LENDER_PRODUCTS } from './adapters/registry.js';
-import { generateSecureToken, generateNumericOTP } from './crypto.js';
+import { generateSecureToken, generateNumericOTP, generateTOTP } from './crypto.js';
 import {
   generateFRID,
   generateCaseId,
@@ -284,8 +284,13 @@ export class ProductServer {
     // Demo Data & Controls (Gated by DEMO_MODE)
     if (pathname === '/api/v1/demo/state' && method === 'GET') {
       if (!DEMO_MODE) throw new AccessDeniedError('Demo mode disabled');
+      const now = this.db.now();
+      const enrichedUsers = this.db.find('users').map(u => ({
+        ...u,
+        live_totp: u.totp_secret ? generateTOTP(u.totp_secret, now) : 'N/A'
+      }));
       return this.sendJson(res, 200, {
-        users: this.db.find('users'),
+        users: enrichedUsers,
         outboxes: this.db.data.simulated_outbox,
         timeOffsetMs: this.db.data.time_offset_ms
       });
