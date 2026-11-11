@@ -83,6 +83,39 @@ export class AuthService {
     return sessionRecord;
   }
 
+  quickLogin({ userId, workspace, req }) {
+    const cleanId = String(userId || '').trim().toLowerCase();
+    const user = this.db.findOne('users', u =>
+      u.user_id.toLowerCase() === cleanId ||
+      (u.phone && u.phone.replace(/\D/g, '') === cleanId.replace(/\D/g, '')) ||
+      (u.email && u.email.toLowerCase() === cleanId)
+    );
+
+    if (!user) {
+      throw new Error(`User profile "${userId}" not found`);
+    }
+
+    // Reset failed attempts
+    this.db.update('users', 'user_id', user.user_id, { failed_attempts: 0, lock_until: null });
+
+    const targetWorkspace = workspace || (user.role === ROLES.BORROWER ? 'borrower' : 'executive');
+    const session = this.createSession(user, targetWorkspace, req);
+
+    return {
+      session,
+      user: {
+        user_id: user.user_id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        org_id: user.org_id,
+        branch_id: user.branch_id
+      },
+      workspaceRoute: WORKSPACE_ROUTES[user.role] || `/${targetWorkspace}/dashboard`
+    };
+  }
+
   revokeSession(sessionId, actorUser) {
     const session = this.db.findById('sessions', 'session_id', sessionId);
     if (!session) return false;

@@ -12,11 +12,12 @@ export function renderPublicHome() {
           <span style="font-size:12px;color:var(--text-subtle);">| Lending Service Platform</span>
         </div>
         <div class="top-bar-actions">
+          <a href="/login" class="btn btn-primary btn-sm">One-Click Login Portal</a>
           <a href="/how-it-works" class="nav-link">How It Works</a>
           <a href="/privacy" class="nav-link">Privacy</a>
           <a href="/grievance" class="nav-link">Grievance</a>
           <a href="/borrower/login" class="btn btn-secondary btn-sm">Borrower Access</a>
-          <a href="/executive/login" class="btn btn-primary btn-sm">Staff Login</a>
+          <a href="/executive/login" class="btn btn-secondary btn-sm">Staff Login</a>
         </div>
       </header>
 
@@ -31,7 +32,8 @@ export function renderPublicHome() {
           </p>
 
           <div style="display:flex;gap:12px;flex-wrap:wrap;">
-            <a href="/executive/login" class="btn btn-primary">LSP Executive Desk Login &rarr;</a>
+            <a href="/login" class="btn btn-primary">Open All Logins Portal (One-Click Access) &rarr;</a>
+            <a href="/executive/login" class="btn btn-secondary">LSP Executive Desk &rarr;</a>
             <a href="/hospital/login" class="btn btn-secondary">Hospital Billing Portal &rarr;</a>
             <a href="/borrower/login" class="btn btn-secondary">Borrower / Patient Access &rarr;</a>
           </div>

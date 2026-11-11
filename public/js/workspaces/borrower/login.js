@@ -11,6 +11,23 @@ export function renderWorkspaceLogin({ router, session }) {
     const errorBox = document.getElementById('login-error');
     let targetPhone = '';
 
+    document.getElementById('btn-quick-borrower')?.addEventListener('click', async () => {
+      try {
+        const res = await api.post('/api/v1/auth/quick-login', {
+          userId: 'BOR-B1',
+          workspace: 'borrower'
+        });
+        api.setCsrfToken(res.csrfToken);
+        session.user = res.user;
+        session.workspace = 'borrower';
+        session.resetIdleTimers();
+        router.navigate('/borrower/home');
+      } catch (err) {
+        errorBox.textContent = err.message;
+        errorBox.style.display = 'block';
+      }
+    });
+
     document.getElementById('btn-send-otp').addEventListener('click', async () => {
       errorBox.style.display = 'none';
       targetPhone = document.getElementById('borrower-phone').value.trim();
@@ -65,6 +82,19 @@ export function renderWorkspaceLogin({ router, session }) {
         <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">Enter your registered Indian mobile number to receive a secure login code.</p>
 
         <div id="login-error" class="alert alert-danger" style="display:none;"></div>
+
+        <div class="box" style="margin-bottom:20px;padding:16px;background:var(--bg-subtle);border:1px solid var(--border-light);border-radius:2px;text-align:center;">
+          <button type="button" id="btn-quick-borrower" class="btn btn-primary" style="width:100%;font-weight:700;padding:10px;">
+            One-Click Sign In as Rahul Kumar &rarr;
+          </button>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Instant access to Borrower Mobile Web (Zero OTP required)</div>
+        </div>
+
+        <div style="display:flex;align-items:center;margin:16px 0;text-align:center;color:var(--text-subtle);font-size:12px;">
+          <div style="flex:1;border-bottom:1px solid var(--border-light);"></div>
+          <span style="padding:0 8px;">or request SMS code</span>
+          <div style="flex:1;border-bottom:1px solid var(--border-light);"></div>
+        </div>
 
         <div id="step-phone">
           <div class="form-group">

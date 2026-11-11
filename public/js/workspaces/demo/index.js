@@ -44,6 +44,20 @@ export async function renderDemoConsole() {
         toast.danger(err.message);
       }
     });
+    // 1-Click Direct Access from Demo Console
+    document.querySelectorAll('.btn-demo-quick-login').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const userId = e.currentTarget.getAttribute('data-user-id');
+        const workspace = e.currentTarget.getAttribute('data-workspace');
+        try {
+          const res = await api.post('/api/v1/auth/quick-login', { userId, workspace });
+          api.setCsrfToken(res.csrfToken);
+          window.location.href = res.workspaceRoute;
+        } catch (err) {
+          toast.danger(err.message);
+        }
+      });
+    });
   };
 
   const staffUsers = demoState.users.filter(u => u.role !== 'BORROWER');
@@ -100,7 +114,11 @@ export async function renderDemoConsole() {
                     <td><code>${u.user_id}</code></td>
                     <td>${u.name}</td>
                     <td><code style="font-size:14px;letter-spacing:2px;font-weight:700;color:var(--primary);background:#f1f5f9;padding:2px 6px;">${u.live_totp || 'N/A'}</code></td>
-                    <td><a href="/${u.role === 'EXECUTIVE' ? 'executive' : (u.role.startsWith('HOSPITAL_') ? 'hospital' : (u.role === 'OPS_MANAGER' ? 'ops' : (u.role === 'COMPLIANCE_AUDITOR' ? 'compliance' : (u.role === 'SUPPORT_AGENT' ? 'support' : 'admin'))))}/login" class="btn btn-secondary btn-sm">Login</a></td>
+                    <td>
+                      <button type="button" class="btn btn-primary btn-sm btn-demo-quick-login" data-user-id="${u.user_id}" data-workspace="${u.role === 'EXECUTIVE' ? 'executive' : (u.role.startsWith('HOSPITAL_') ? 'hospital' : (u.role === 'OPS_MANAGER' ? 'ops' : (u.role === 'COMPLIANCE_AUDITOR' ? 'compliance' : (u.role === 'SUPPORT_AGENT' ? 'support' : 'admin'))))}">
+                        1-Click Enter Panel &rarr;
+                      </button>
+                    </td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -128,7 +146,11 @@ export async function renderDemoConsole() {
                     <td><strong>${b.user_id}</strong></td>
                     <td>${b.name}</td>
                     <td><code>${b.phone}</code></td>
-                    <td><a href="/borrower/login" class="btn btn-secondary btn-sm">Login</a></td>
+                    <td>
+                      <button type="button" class="btn btn-primary btn-sm btn-demo-quick-login" data-user-id="${b.user_id}" data-workspace="borrower">
+                        1-Click Enter Panel &rarr;
+                      </button>
+                    </td>
                   </tr>
                 `).join('')}
               </tbody>

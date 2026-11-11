@@ -248,6 +248,9 @@ export class ProductServer {
     if (pathname === '/api/v1/auth/login' && method === 'POST') {
       return this.handleWorkforceLogin(req, res);
     }
+    if (pathname === '/api/v1/auth/quick-login' && method === 'POST') {
+      return this.handleQuickLogin(req, res);
+    }
     if (pathname === '/api/v1/auth/borrower/request-otp' && method === 'POST') {
       return this.handleBorrowerRequestOTP(req, res);
     }
@@ -465,6 +468,27 @@ export class ProductServer {
       }, { 'Set-Cookie': cookie });
     } catch (err) {
       return this.sendError(res, 401, 'INVALID_CREDENTIALS', err.message, req.correlationId);
+    }
+  }
+
+  async handleQuickLogin(req, res) {
+    const { userId, workspace } = req.body || {};
+    try {
+      const result = this.authService.quickLogin({
+        userId,
+        workspace: workspace || 'executive',
+        req
+      });
+
+      const cookie = this.authService.formatSessionCookie(result.session.session_id);
+      return this.sendJson(res, 200, {
+        success: true,
+        user: result.user,
+        csrfToken: result.session.csrf_token,
+        workspaceRoute: result.workspaceRoute
+      }, { 'Set-Cookie': cookie });
+    } catch (err) {
+      return this.sendError(res, 400, 'QUICK_LOGIN_FAILED', err.message, req.correlationId);
     }
   }
 

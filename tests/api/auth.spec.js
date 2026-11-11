@@ -56,6 +56,29 @@ test.describe('Tier 2 API: Workforce & Borrower Authentication', () => {
     expect(clearCookie).toContain('Max-Age=0');
   });
 
+  test('One-click quick login authenticates and sets session cookie without password or OTP', async ({ request }) => {
+    const res = await request.post('/api/v1/auth/quick-login', {
+      data: {
+        userId: 'USR-PRIYA',
+        workspace: 'executive'
+      }
+    });
+    expect(res.status()).toBe(200);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(data.user.user_id).toBe('USR-PRIYA');
+    expect(data.workspaceRoute).toBe('/executive/dashboard');
+
+    const cookieHeader = res.headers()['set-cookie'] || '';
+    expect(cookieHeader).toContain('aidvans_session=');
+
+    // Verify /api/v1/auth/me accepts session
+    const meRes = await request.get('/api/v1/auth/me', {
+      headers: { 'Cookie': cookieHeader }
+    });
+    expect(meRes.status()).toBe(200);
+  });
+
   test('Account lockout enforces 5-attempt limit and locks account', async ({ request }) => {
     const targetUserId = 'USR-IMRAN';
 

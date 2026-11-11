@@ -9,6 +9,23 @@ export function renderWorkspaceLogin({ router, session }) {
     const form = document.getElementById('login-form');
     const errorBox = document.getElementById('login-error');
 
+    document.getElementById('btn-quick-login')?.addEventListener('click', async () => {
+      try {
+        const res = await api.post('/api/v1/auth/quick-login', {
+          userId: 'USR-NEHA',
+          workspace: 'support'
+        });
+        api.setCsrfToken(res.csrfToken);
+        session.user = res.user;
+        session.workspace = 'support';
+        session.resetIdleTimers();
+        router.navigate(res.workspaceRoute || '/support/tickets');
+      } catch (err) {
+        errorBox.textContent = err.message;
+        errorBox.style.display = 'block';
+      }
+    });
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       errorBox.style.display = 'none';
@@ -42,6 +59,20 @@ export function renderWorkspaceLogin({ router, session }) {
         <h1 style="font-size:22px;margin:12px 0 4px 0;">Support Login</h1>
         <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">Customer assistance, masked case lookup, and grievance routing.</p>
         <div id="login-error" class="alert alert-danger" style="display:none;"></div>
+
+        <div class="box" style="margin-bottom:20px;padding:16px;background:var(--bg-subtle);border:1px solid var(--border-light);border-radius:2px;text-align:center;">
+          <button type="button" id="btn-quick-login" class="btn btn-primary" style="width:100%;font-weight:700;padding:10px;">
+            One-Click Direct Sign In as Neha Kulkarni &rarr;
+          </button>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Instant access to Customer Support Desk (Zero password/OTP required)</div>
+        </div>
+
+        <div style="display:flex;align-items:center;margin:16px 0;text-align:center;color:var(--text-subtle);font-size:12px;">
+          <div style="flex:1;border-bottom:1px solid var(--border-light);"></div>
+          <span style="padding:0 8px;">or sign in with credentials</span>
+          <div style="flex:1;border-bottom:1px solid var(--border-light);"></div>
+        </div>
+
         <form id="login-form">
           <div class="form-group">
             <label for="username">Support Agent ID</label>

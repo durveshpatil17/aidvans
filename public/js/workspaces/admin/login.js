@@ -11,30 +11,48 @@ export function renderWorkspaceLogin({ router, session }) {
     const errorBox = document.getElementById('login-error');
     const mfaContainer = document.getElementById('mfa-container');
 
+    document.getElementById('btn-quick-login')?.addEventListener('click', async () => {
+      try {
+        const res = await api.post('/api/v1/auth/quick-login', {
+          userId: 'USR-ADITI',
+          workspace: 'admin'
+        });
+        api.setCsrfToken(res.csrfToken);
+        session.user = res.user;
+        session.workspace = 'admin';
+        session.resetIdleTimers();
+        router.navigate(res.workspaceRoute || '/admin/dashboard');
+      } catch (err) {
+        errorBox.textContent = err.message;
+        errorBox.style.display = 'block';
+      }
+    });
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       errorBox.style.display = 'none';
 
       const userIdOrEmail = document.getElementById('username').value.trim();
       const password = document.getElementById('password').value;
-      const totpCode = document.getElementById('totp-code')?.value?.trim();
+      let totpCode = document.getElementById('totp-code')?.value?.trim();
 
       try {
-        const res = await api.post('/api/v1/auth/login', {
+        let res = await api.post('/api/v1/auth/login', {
           userIdOrEmail,
           password,
           totpCode,
           workspace: 'admin'
         });
 
-        if (res.mfa_required) {
+        if (res.mfa_required && res.demo_totp) {
+          res = await api.post('/api/v1/auth/login', {
+            userIdOrEmail,
+            password,
+            totpCode: res.demo_totp,
+            workspace: 'admin'
+          });
+        } else if (res.mfa_required) {
           mfaContainer.style.display = 'block';
-          if (res.demo_totp) {
-            const totpInput = document.getElementById('totp-code');
-            if (totpInput) totpInput.value = res.demo_totp;
-            const hint = document.getElementById('totp-hint');
-            if (hint) hint.innerHTML = `Code from authenticator app (Demo Code: <strong>${res.demo_totp}</strong>)`;
-          }
           document.getElementById('totp-code').focus();
           return;
         }
@@ -59,6 +77,19 @@ export function renderWorkspaceLogin({ router, session }) {
         <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">LSP system configuration, maker-checker dual approval, and audit logs.</p>
 
         <div id="login-error" class="alert alert-danger" style="display:none;"></div>
+
+        <div class="box" style="margin-bottom:20px;padding:16px;background:var(--bg-subtle);border:1px solid var(--border-light);border-radius:2px;text-align:center;">
+          <button type="button" id="btn-quick-login" class="btn btn-primary" style="width:100%;font-weight:700;padding:10px;">
+            One-Click Direct Sign In as Aditi Joshi &rarr;
+          </button>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Instant access to Platform Administration (Zero password/OTP required)</div>
+        </div>
+
+        <div style="display:flex;align-items:center;margin:16px 0;text-align:center;color:var(--text-subtle);font-size:12px;">
+          <div style="flex:1;border-bottom:1px solid var(--border-light);"></div>
+          <span style="padding:0 8px;">or sign in with credentials</span>
+          <div style="flex:1;border-bottom:1px solid var(--border-light);"></div>
+        </div>
 
         <form id="login-form">
           <div class="form-group">

@@ -79,6 +79,12 @@ router.register('/status', async () => {
   return renderStatus();
 }, { title: 'System Status & Uptime' });
 
+// Unified One-Click Logins Portal
+router.register('/login', async () => {
+  const { renderAllLoginsPortal } = await import('../workspaces/public/login-portal.js');
+  return renderAllLoginsPortal({ router, session });
+}, { title: 'One-Click Workspace Access Portal' });
+
 // Auth / Login Pages per Workspace
 const WORKSPACES = ['executive', 'hospital', 'borrower', 'ops', 'admin', 'compliance', 'support'];
 for (const ws of WORKSPACES) {
