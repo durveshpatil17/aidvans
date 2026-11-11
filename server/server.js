@@ -132,22 +132,8 @@ export class ProductServer {
       return this.sseHub.addClient(req, res, sessionContext.user);
     }
 
-    // Read body for non-GET requests
-    let bodyStr = '';
-    req.on('data', chunk => bodyStr += chunk);
-    req.on('end', async () => {
-      req.body = {};
-      if (bodyStr && bodyStr.trim()) {
-        try {
-          req.body = JSON.parse(bodyStr);
-          if (typeof req.body !== 'object' || req.body === null) {
-            throw new Error('Payload must be a JSON object');
-          }
-        } catch {
-          return this.sendError(res, 400, 'INVALID_JSON', 'Malformed JSON in request payload', correlationId);
-        }
-      }
-
+    const executeRoute = async (body, bodyRaw) => {
+      req.body = body || {};
       try {
         // --- API Routes (/api/v1/*) ---
         if (pathname.startsWith('/api/v1/')) {
@@ -156,7 +142,7 @@ export class ProductServer {
 
         // --- Webhook Routes (/webhooks/lender/*) ---
         if (pathname.startsWith('/webhooks/lender/')) {
-          return await this.handleWebhookRoute(req, res, pathname, bodyStr);
+          return await this.handleWebhookRoute(req, res, pathname, bodyRaw || JSON.stringify(body));
         }
 
         // --- Demo Console Route (/demo) ---
@@ -174,11 +160,34 @@ export class ProductServer {
         const code = err.code || 'INTERNAL_SERVER_ERROR';
         return this.sendError(res, statusCode, code, err.message, correlationId, err.details);
       }
+    };
+
+    // If body is already parsed by serverless runtime (e.g. Vercel)
+    if (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0) {
+      return executeRoute(req.body, JSON.stringify(req.body));
+    }
+
+    // Read body stream for standard Node.js server
+    let bodyStr = '';
+    req.on('data', chunk => bodyStr += chunk);
+    req.on('end', async () => {
+      let parsedBody = {};
+      if (bodyStr && bodyStr.trim()) {
+        try {
+          parsedBody = JSON.parse(bodyStr);
+          if (typeof parsedBody !== 'object' || parsedBody === null) {
+            throw new Error('Payload must be a JSON object');
+          }
+        } catch {
+          return this.sendError(res, 400, 'INVALID_JSON', 'Malformed JSON in request payload', correlationId);
+        }
+      }
+      return executeRoute(parsedBody, bodyStr);
     });
   }
 
   applySecurityHeaders(res) {
-    res.setHeader('Content-Security-Policy', "default-src 'self' http://localhost:* ws://localhost:*; frame-src 'self' http://localhost:*; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self' http://localhost:*; img-src 'self' data:;");
+    res.setHeader('Content-Security-Policy', "default-src 'self' https: http://localhost:* ws://localhost:* wss:; frame-src 'self' https: http://localhost:*; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self' https: http://localhost:*; img-src 'self' data: https:;");
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');

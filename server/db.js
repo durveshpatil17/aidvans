@@ -12,7 +12,9 @@ import { hashPassword } from './crypto.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
-const DB_PATH = path.join(ROOT_DIR, 'data', 'db.json');
+const DB_PATH = (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME)
+  ? path.join('/tmp', 'db.json')
+  : path.join(ROOT_DIR, 'data', 'db.json');
 const SEED_PATH = path.join(ROOT_DIR, 'data', 'seed.json');
 
 export class Database {

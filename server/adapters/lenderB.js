@@ -4,6 +4,7 @@
  */
 
 import http from 'http';
+import https from 'https';
 import { BaseLenderAdapter } from './_template.js';
 import { LENDER_PRODUCTS } from './registry.js';
 
@@ -23,9 +24,10 @@ export class LenderBAdapter extends BaseLenderAdapter {
   async makeRequest(endpoint, method = 'GET', data = null, headers = {}) {
     const url = new URL(`${this.apiBaseUrl}${endpoint}`);
     const bodyStr = data ? JSON.stringify(data) : null;
+    const client = url.protocol === 'https:' ? https : http;
 
     return new Promise((resolve, reject) => {
-      const req = http.request(url, {
+      const req = client.request(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
