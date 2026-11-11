@@ -144,3 +144,4 @@ export class LenderAAdapter extends BaseLenderAdapter {
     };
   }
 }
+

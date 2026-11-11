@@ -41,3 +41,4 @@ In accordance with Section 1 of the Loop Engineering Prompt V2, this document re
 - **Resolution**:
   - The client is a zero-authority presentation layer communicating via `/api/v1/*`.
   - Server BFF enforces state machines, optimistic concurrency (`If-Match` / `version`), idempotency keys, and RBAC before updating atomic JSON state (`data/db.json`).
+

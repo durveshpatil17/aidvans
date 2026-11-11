@@ -42,3 +42,4 @@ export function renderTimeline(events) {
     </div>
   `;
 }
+

@@ -55,3 +55,4 @@ export function renderPrintableReceipt({ title, receiptNumber, timestamp, partie
     </div>
   `;
 }
+

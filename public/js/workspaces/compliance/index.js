@@ -62,3 +62,4 @@ export async function renderComplianceWorkspace(ctx, { router, session }) {
     </div>
   `;
 }
+

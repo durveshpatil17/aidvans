@@ -27,6 +27,14 @@ export function paiseToRupees(paise) {
   return Math.round(Number(paise)) / 100;
 }
 
+export function safeAddINR(a, b) {
+  return (rupeesToPaise(a) + rupeesToPaise(b)) / 100;
+}
+
+export function safeSubtractINR(a, b) {
+  return (rupeesToPaise(a) - rupeesToPaise(b)) / 100;
+}
+
 const ONES = [
   '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
   'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',

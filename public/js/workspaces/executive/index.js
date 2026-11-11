@@ -207,7 +207,7 @@ function renderSubviewContent(subview, { cases, activeCount, inviteCount, disbPe
           { label: 'Created At', key: 'created_at', render: val => new Date(val).toLocaleDateString('en-IN') },
           { label: 'Actions', key: 'case_id', render: (val, r) => `
             <div style="display:flex;gap:6px;">
-              <button type="button" class="btn btn-secondary btn-sm" onclick="alert('Viewing case ${val}')">View</button>
+              <a href="/executive/case-detail?id=${val}" class="btn btn-secondary btn-sm">Details</a>
               ${r.case_status !== 'FACILITATION_CLOSED' ? `<button type="button" class="btn btn-danger btn-sm" data-action="close-case" data-case-id="${val}">Close Case</button>` : ''}
             </div>
           `}

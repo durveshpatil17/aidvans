@@ -1,9 +1,7 @@
 import { expect } from '@playwright/test';
+import { resetDb, readDb, writeDb } from '../../server/db.js';
+import { generateTOTP, computeHmacSha256, generateHMAC } from '../../server/crypto.js';
 
-/**
- * Attaches console error and warning listeners to the page.
- * Returns a function that asserts zero console errors/warnings occurred.
- */
 export function setupConsoleCheck(page) {
   const errors = [];
   page.on('console', msg => {
@@ -19,9 +17,6 @@ export function setupConsoleCheck(page) {
   };
 }
 
-/**
- * Attaches request listener to ensure no requests to external origins are made.
- */
 export function setupNetworkCheck(page) {
   const externalRequests = [];
   page.on('request', req => {
@@ -35,116 +30,124 @@ export function setupNetworkCheck(page) {
   };
 }
 
-/**
- * Resets prototype data to canonical seed state.
- */
-export async function resetData(page) {
-  await page.goto('/#/');
-  await page.waitForLoadState('domcontentloaded');
-  await page.evaluate(() => {
-    if (window.__LSP_STORE__) {
-      window.__LSP_STORE__.reset();
+export async function resetDatabase() {
+  try {
+    await fetch('http://localhost:3000/api/v1/demo/reset', { method: 'POST' });
+  } catch {}
+  return resetDb();
+}
+
+export const resetData = resetDatabase;
+export const loginAs = async () => {};
+
+export function getDatabase() {
+  return readDb();
+}
+
+export function getLatestSMS(phone) {
+  const db = readDb();
+  const messages = db.simulated_outbox?.sms || [];
+  if (phone) {
+    const clean = phone.replace(/[^0-9]/g, '');
+    return messages.find(m => m.recipient.replace(/[^0-9]/g, '').includes(clean));
+  }
+  return messages[0];
+}
+
+export async function getSessionCookie(request, workspace, userId, password = 'Password@123') {
+  const db = readDb();
+  const user = db.users.find(u => u.user_id === userId || u.email === userId);
+  const secret = user?.totp_secret || Buffer.from(userId.padEnd(16, '0')).toString('hex').slice(0, 32);
+  const res = await request.post('/api/v1/auth/login', {
+    data: {
+      userIdOrEmail: userId,
+      password,
+      totpCode: generateTOTP(secret),
+      workspace
     }
   });
-  await page.waitForTimeout(50);
+  return res.headers()['set-cookie'];
 }
 
-/**
- * Switch role or log in as a specific persona (by ID or role).
- */
-export async function loginAs(page, userIdOrRole) {
-  await page.goto('/#/');
+export async function getBorrowerCookie(request, phone = '+91 98000 00011') {
+  await request.post('/api/v1/auth/borrower/request-otp', { data: { phone } });
+  const db = readDb();
+  const sms = db.simulated_outbox?.sms?.find(s => s.recipient === phone);
+  const otp = sms?.otp || '123456';
+  const res = await request.post('/api/v1/auth/borrower/verify-otp', {
+    data: { phone, otp }
+  });
+  return res.headers()['set-cookie'];
+}
+
+export async function loginWorkforce(page, workspace, userId = 'USR-PRIYA', password = 'Password@123') {
+  await page.goto(`/${workspace}/login`);
   await page.waitForLoadState('domcontentloaded');
-  await page.evaluate((uid) => {
-    if (window.__LSP_STORE__) {
-      window.__LSP_STORE__.setCurrentUser(uid);
-    }
-  }, userIdOrRole);
-  const select = page.locator('[data-testid="role-switcher-select"]');
-  if (await select.isVisible()) {
-    await select.selectOption({ value: userIdOrRole }).catch(() => {});
+
+  const db = readDb();
+  const user = db.users.find(u => u.user_id === userId || u.email === userId);
+
+  await page.fill('#username', userId);
+  await page.fill('#password', password);
+
+  // First submit triggers MFA if enrolled
+  await page.click('button[type="submit"]');
+  await page.waitForTimeout(300);
+
+  const mfaInput = page.locator('#totp-code');
+  if (await mfaInput.isVisible() && user && user.totp_secret) {
+    const code = generateTOTP(user.totp_secret);
+    await mfaInput.fill(code);
+    await page.click('button[type="submit"]');
+    await page.waitForTimeout(300);
   }
-  await page.waitForTimeout(100);
+
+  await page.waitForURL(url => !url.pathname.endsWith('/login'), { timeout: 8000 });
 }
 
-/**
- * Lender sandbox actions for controlling the NBFC mock.
- */
-export const lenderSandbox = {
-  async navigate(page) {
-    await page.goto('/#/sandbox/lender');
-    await page.waitForLoadState('domcontentloaded');
-  },
+export async function loginBorrower(page, phone = '+91 98000 00011') {
+  await page.goto('/borrower/login');
+  await page.waitForLoadState('domcontentloaded');
 
-  async approveApplication(page, appId) {
-    await this.navigate(page);
-    await page.click(`[data-testid="lender-action-approve-${appId}"]`);
-    await page.waitForTimeout(150);
-  },
+  await page.fill('#borrower-phone', phone);
+  await page.click('#btn-send-otp');
+  await page.waitForTimeout(300);
 
-  async rejectApplication(page, appId, reason = 'Underwriting criteria not met') {
-    await this.navigate(page);
-    await page.fill(`[data-testid="lender-reject-reason-${appId}"]`, reason);
-    await page.click(`[data-testid="lender-action-reject-${appId}"]`);
-    await page.waitForTimeout(150);
-  },
+  const sms = getLatestSMS(phone);
+  const otp = sms?.otp || '123456';
 
-  async sanctionLowerAmount(page, appId, amount) {
-    await this.navigate(page);
-    await page.fill(`[data-testid="lender-lower-amount-${appId}"]`, String(amount));
-    await page.click(`[data-testid="lender-action-sanction-lower-${appId}"]`);
-    await page.waitForTimeout(150);
-  },
+  await page.fill('#borrower-otp', otp);
+  await page.click('#btn-verify-otp');
+  await page.waitForTimeout(300);
+  await page.waitForURL(url => !url.pathname.endsWith('/login'), { timeout: 8000 });
+}
 
-  async requestMoreInfo(page, appId, query = 'Additional salary slips needed') {
-    await this.navigate(page);
-    await page.fill(`[data-testid="lender-info-query-${appId}"]`, query);
-    await page.click(`[data-testid="lender-action-request-info-${appId}"]`);
-    await page.waitForTimeout(150);
-  },
+export async function sendSimulatedLenderWebhook(lenderCode = 'lender_a', eventType, data = {}) {
+  const secret = lenderCode === 'lender_a' ? 'sec_carefin_primary_9876543210' : 'sec_healthpe_primary_1357924680';
+  const keyId = lenderCode === 'lender_a' ? 'key_carefin_2026_primary' : 'key_healthpe_2026_primary';
 
-  async simulateTimeout(page, appId) {
-    await this.navigate(page);
-    await page.click(`[data-testid="lender-action-timeout-${appId}"]`);
-    await page.waitForTimeout(150);
-  },
+  const payload = {
+    event_id: data.event_id || `EVT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    event_type: eventType,
+    case_id: data.case_id || 'CASE-2026-4019',
+    application_id: data.application_id || 'APP-2026-9901',
+    timestamp: new Date().toISOString(),
+    data
+  };
 
-  async approveDrawdown(page, drawdownId) {
-    await this.navigate(page);
-    await page.click(`[data-testid="lender-drawdown-approve-${drawdownId}"]`);
-    await page.waitForTimeout(150);
-  },
+  const bodyStr = JSON.stringify(payload);
+  const sig = generateHMAC(secret, bodyStr);
 
-  async rejectDrawdown(page, drawdownId, reason = 'Limit exceeded') {
-    await this.navigate(page);
-    await page.fill(`[data-testid="lender-drawdown-reject-reason-${drawdownId}"]`, reason);
-    await page.click(`[data-testid="lender-drawdown-reject-${drawdownId}"]`);
-    await page.waitForTimeout(150);
-  },
+  const res = await fetch(`http://localhost:3000/webhooks/lender/${lenderCode}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-lender-signature': sig,
+      'x-lender-key-id': keyId,
+      'x-lender-timestamp': String(Date.now())
+    },
+    body: bodyStr
+  });
 
-  async confirmDisbursement(page, disbId) {
-    await this.navigate(page);
-    await page.click(`[data-testid="lender-disb-confirm-${disbId}"]`);
-    await page.waitForTimeout(150);
-  },
-
-  async failDisbursement(page, disbId, reason = 'Account beneficiary mismatch at bank') {
-    await this.navigate(page);
-    await page.fill(`[data-testid="lender-disb-fail-reason-${disbId}"]`, reason);
-    await page.click(`[data-testid="lender-disb-fail-${disbId}"]`);
-    await page.waitForTimeout(150);
-  },
-
-  async reverseDisbursement(page, disbId, reason = 'Bank return: NEFT technical failure') {
-    await this.navigate(page);
-    await page.fill(`[data-testid="lender-disb-reverse-reason-${disbId}"]`, reason);
-    await page.click(`[data-testid="lender-disb-reverse-${disbId}"]`);
-    await page.waitForTimeout(150);
-  },
-
-  async duplicateWebhook(page, eventId) {
-    await this.navigate(page);
-    await page.click(`[data-testid="lender-webhook-duplicate-${eventId}"]`);
-    await page.waitForTimeout(150);
-  }
-};
+  return { status: res.status, json: await res.json() };
+}

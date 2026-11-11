@@ -18,7 +18,8 @@ export function isValidPAN(pan) {
 
 export function isValidPhone(phone) {
   if (!phone || typeof phone !== 'string') return false;
-  return REGEX.PHONE.test(phone.trim());
+  const clean = phone.replace(/[\s\-]/g, '');
+  return /^(\+91|0)?[6-9]\d{9}$/.test(clean);
 }
 
 export function isValidIFSC(ifsc) {

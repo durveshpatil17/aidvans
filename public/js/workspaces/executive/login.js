@@ -78,3 +78,4 @@ export function renderWorkspaceLogin({ router, session }) {
     </div>
   `;
 }
+

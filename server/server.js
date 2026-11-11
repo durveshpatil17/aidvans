@@ -15,7 +15,7 @@ import { AuthService } from './auth.js';
 import { SSEHub } from './sse.js';
 import { IdempotencyManager } from './idempotency.js';
 import { hasPermission, enforceTenantIsolation, enforceBorrowerIsolation, maskEntityFields, AccessDeniedError } from './rbac.js';
-import { ROLES, PERMISSIONS } from '../shared/permissions.js';
+import { ROLES, PERMISSIONS, WORKSPACE_ROUTES } from '../shared/permissions.js';
 import { LenderAAdapter } from './adapters/lenderA.js';
 import { LenderBAdapter } from './adapters/lenderB.js';
 import { LENDER_PRODUCTS } from './adapters/registry.js';
@@ -49,6 +49,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
+const SHARED_DIR = path.join(ROOT_DIR, 'shared');
 
 const DEFAULT_PORT = Number(process.env.PORT) || 3000;
 const DEMO_MODE = process.env.DEMO_MODE !== '0';
@@ -111,6 +112,7 @@ export class ProductServer {
   }
 
   async handleRequest(req, res) {
+    res.req = req;
     const correlationId = `CORR-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
     req.correlationId = correlationId;
 
@@ -135,9 +137,12 @@ export class ProductServer {
     req.on('data', chunk => bodyStr += chunk);
     req.on('end', async () => {
       req.body = {};
-      if (bodyStr) {
+      if (bodyStr && bodyStr.trim()) {
         try {
           req.body = JSON.parse(bodyStr);
+          if (typeof req.body !== 'object' || req.body === null) {
+            throw new Error('Payload must be a JSON object');
+          }
         } catch {
           return this.sendError(res, 400, 'INVALID_JSON', 'Malformed JSON in request payload', correlationId);
         }
@@ -159,7 +164,7 @@ export class ProductServer {
           if (!DEMO_MODE) {
             return this.sendError(res, 404, 'NOT_FOUND', 'Demo mode is disabled on this environment', correlationId);
           }
-          return this.serveStaticFile(req, res, '/index.html');
+          return this.handleStaticRoute(req, res, '/index.html');
         }
 
         // --- Static Asset & SPA History Route ---
@@ -181,6 +186,9 @@ export class ProductServer {
   }
 
   sendJson(res, statusCode, data, headers = {}) {
+    if (res.req && res.req._idempotencyKey && statusCode < 500) {
+      this.idempotency.saveRecord(res.req._idempotencyKey, statusCode, headers, data);
+    }
     const jsonStr = JSON.stringify(data);
     const acceptEncoding = res.req?.headers['accept-encoding'] || '';
 
@@ -226,6 +234,7 @@ export class ProductServer {
       const idemKey = this.idempotency.getKey(req, userId);
 
       if (idemKey) {
+        req._idempotencyKey = idemKey;
         const cached = this.idempotency.getRecord(idemKey);
         if (cached) {
           return this.sendJson(res, cached.status_code, JSON.parse(cached.body), {
@@ -263,6 +272,36 @@ export class ProductServer {
       return this.sendJson(res, 200, { lenders: this.db.find('organizations', o => o.org_type === 'NBFC'), products: Object.values(LENDER_PRODUCTS) });
     }
 
+    // Public Case Linking & FRID lookup
+    if (pathname === '/api/v1/cases/link' && method === 'POST') {
+      return this.handleLinkCase(req, res);
+    }
+    if (pathname.startsWith('/api/v1/cases/by-frid/') && method === 'GET') {
+      const frid = pathname.split('/')[5];
+      return this.handleGetCaseByFrid(req, res, frid);
+    }
+
+    // Demo Data & Controls (Gated by DEMO_MODE)
+    if (pathname === '/api/v1/demo/state' && method === 'GET') {
+      if (!DEMO_MODE) throw new AccessDeniedError('Demo mode disabled');
+      return this.sendJson(res, 200, {
+        users: this.db.find('users'),
+        outboxes: this.db.data.simulated_outbox,
+        timeOffsetMs: this.db.data.time_offset_ms
+      });
+    }
+    if (pathname === '/api/v1/demo/advance-clock' && method === 'POST') {
+      if (!DEMO_MODE) throw new AccessDeniedError('Demo mode disabled');
+      const hours = Number(req.body.hours || 1);
+      const newTime = this.db.advanceTime(hours * 3600 * 1000);
+      return this.sendJson(res, 200, { newTimestamp: newTime, advancedHours: hours });
+    }
+    if (pathname === '/api/v1/demo/reset' && method === 'POST') {
+      if (!DEMO_MODE) throw new AccessDeniedError('Demo mode disabled');
+      this.db.reset();
+      return this.sendJson(res, 200, { success: true, message: 'Database reset to canonical seed' });
+    }
+
     // Authenticated API Guard
     const sessionCtx = this.authService.getSession(req);
     if (!sessionCtx) {
@@ -279,6 +318,12 @@ export class ProductServer {
     }
     if (pathname === '/api/v1/cases' && method === 'POST') {
       return this.handleCreateCase(req, res);
+    }
+    if (pathname === '/api/v1/cases/lookup' && method === 'GET') {
+      return this.handleLookupCase(req, res, parsedUrl);
+    }
+    if (pathname === '/api/v1/cases/export' && method === 'GET') {
+      return this.handleExportCases(req, res);
     }
     if (pathname.startsWith('/api/v1/cases/') && method === 'GET') {
       const caseId = pathname.split('/')[4];
@@ -306,6 +351,25 @@ export class ProductServer {
       const reqId = pathname.split('/')[4];
       return this.handleAuthoriseFundingRequest(req, res, reqId);
     }
+    if (pathname === '/api/v1/funding-requests/step-up-otp' && method === 'POST') {
+      return this.handleRequestStepUpOTP(req, res);
+    }
+
+    // Consent
+    if (pathname === '/api/v1/consent' && method === 'POST') {
+      return this.handleRecordConsent(req, res);
+    }
+    if (pathname === '/api/v1/consent/withdraw' && method === 'POST') {
+      return this.handleWithdrawConsent(req, res);
+    }
+    if (pathname === '/api/v1/compliance/consents' && method === 'GET') {
+      return this.handleGetComplianceConsents(req, res);
+    }
+
+    // Personal Journal
+    if (pathname === '/api/v1/user/journal' && method === 'GET') {
+      return this.handleGetUserJournal(req, res);
+    }
 
     // Receipts
     if (pathname === '/api/v1/receipts/confirm' && method === 'POST') {
@@ -320,8 +384,43 @@ export class ProductServer {
       return this.handleBeneficiaryChangeRequest(req, res);
     }
     if (pathname.startsWith('/api/v1/admin/beneficiaries/') && pathname.endsWith('/approve') && method === 'POST') {
-      const benefId = pathname.split('/')[4];
+      const benefId = pathname.split('/')[5];
       return this.handleBeneficiaryApprove(req, res, benefId);
+    }
+
+    // Admin User Lifecycle & Incident
+    if (pathname.startsWith('/api/v1/admin/users/') && pathname.endsWith('/deactivate') && method === 'POST') {
+      const uid = pathname.split('/')[5];
+      return this.handleDeactivateUser(req, res, uid);
+    }
+    if (pathname.startsWith('/api/v1/admin/users/') && pathname.endsWith('/unlock') && method === 'POST') {
+      const uid = pathname.split('/')[5];
+      return this.handleUnlockUser(req, res, uid);
+    }
+    if (pathname === '/api/v1/admin/incident/simulate' && method === 'POST') {
+      return this.handleSimulateIncident(req, res);
+    }
+
+    // Ops Reconciliation
+    if (pathname === '/api/v1/ops/reconciliation' && method === 'GET') {
+      return this.handleGetReconciliation(req, res);
+    }
+    if (pathname === '/api/v1/ops/reconciliation/resolve' && method === 'POST') {
+      return this.handleResolveReconciliationDiscrepancy(req, res);
+    }
+
+    // Support Tickets
+    if (pathname === '/api/v1/support/tickets' && method === 'GET') {
+      return this.handleListTickets(req, res);
+    }
+    if (pathname === '/api/v1/support/tickets' && method === 'POST') {
+      return this.handleCreateTicket(req, res);
+    }
+
+    // Product KFS
+    if (pathname.startsWith('/api/v1/products/') && pathname.endsWith('/kfs') && method === 'GET') {
+      const pid = pathname.split('/')[4];
+      return this.handleGetProductKFS(req, res, pid);
     }
 
     // Audit Logs
@@ -331,27 +430,6 @@ export class ProductServer {
       }
       const logs = this.db.find('audit_logs');
       return this.sendJson(res, 200, { logs });
-    }
-
-    // Demo Data & Controls
-    if (pathname === '/api/v1/demo/state' && method === 'GET') {
-      if (!DEMO_MODE) throw new AccessDeniedError('Demo mode disabled');
-      return this.sendJson(res, 200, {
-        users: this.db.find('users'),
-        outboxes: this.db.data.simulated_outbox,
-        timeOffsetMs: this.db.data.time_offset_ms
-      });
-    }
-    if (pathname === '/api/v1/demo/advance-clock' && method === 'POST') {
-      if (!DEMO_MODE) throw new AccessDeniedError('Demo mode disabled');
-      const hours = Number(req.body.hours || 1);
-      const newTime = this.db.advanceTime(hours * 3600 * 1000);
-      return this.sendJson(res, 200, { newTimestamp: newTime, advancedHours: hours });
-    }
-    if (pathname === '/api/v1/demo/reset' && method === 'POST') {
-      if (!DEMO_MODE) throw new AccessDeniedError('Demo mode disabled');
-      this.db.reset();
-      return this.sendJson(res, 200, { success: true, message: 'Database reset to canonical seed' });
     }
 
     return this.sendError(res, 404, 'NOT_FOUND', `API endpoint '${method} ${pathname}' not found`, correlationId);
@@ -494,11 +572,10 @@ export class ProductServer {
       created_at: new Date(this.db.now()).toISOString()
     };
 
-    this.db.insert('cases', newCase);
-
     // Initial Demand
     if (initialDemand) {
       const demandId = generateDemandId();
+      newCase.initial_demand_id = demandId;
       this.db.insert('demands', {
         demand_id: demandId,
         case_id: caseId,
@@ -509,6 +586,8 @@ export class ProductServer {
         procedure_name: initialDemand.procedureName || 'Medical Treatment'
       });
     }
+
+    this.db.insert('cases', newCase);
 
     this.db.logAudit({
       actorId: user.user_id,
@@ -616,6 +695,17 @@ export class ProductServer {
 
     const caseRecord = this.db.findById('cases', 'case_id', caseId);
     if (!caseRecord) return this.sendError(res, 404, 'CASE_NOT_FOUND', 'Case not found', req.correlationId);
+
+    // Single-disbursement product check (AT-10, J11)
+    const product = LENDER_PRODUCTS[productId || 'PROD-01'];
+    if (product && (product.drawdownMode === 'SINGLE_DISBURSEMENT' || product.multiDrawdown === false)) {
+      const existingReqs = this.db.find('funding_requests', f => f.case_id === caseId);
+      if (existingReqs.length > 0) {
+        return this.sendError(res, 400, 'SUBSEQUENT_TRANCHE_NOT_SUPPORTED',
+          'Single-disbursement product does not support subsequent drawdown tranches. A new application is required.',
+          req.correlationId);
+      }
+    }
 
     const freqId = generateFundingRequestId();
     const freq = {
@@ -808,6 +898,433 @@ export class ProductServer {
     });
   }
 
+  async handleLinkCase(req, res) {
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+    const { frid } = req.body || {};
+
+    const rateKey = `rate:frid:${ip}`;
+    const rateData = this.rateLimitMap.get(rateKey) || { attempts: 0, lockUntil: 0 };
+
+    if (rateData.lockUntil > this.db.now()) {
+      const waitMins = Math.ceil((rateData.lockUntil - this.db.now()) / 60000);
+      this.db.logAudit({
+        actorId: 'ANONYMOUS',
+        actorRole: 'BORROWER',
+        action: 'FRID_RATE_LIMIT_BLOCKED',
+        targetType: 'CASE',
+        targetId: frid || 'UNKNOWN',
+        reason: `Rate limit enforced on ${ip}: locked for ${waitMins} more minutes.`
+      });
+      return this.sendError(res, 429, 'RATE_LIMIT_EXCEEDED', `Too many invalid FRID attempts. Please wait ${waitMins} minutes before trying again.`, req.correlationId);
+    }
+
+    if (!frid) {
+      return this.sendError(res, 400, 'MISSING_FRID', 'FRID reference is required', req.correlationId);
+    }
+
+    const cleanFrid = String(frid).toUpperCase().trim();
+    const caseRecord = this.db.findOne('cases', c => c.frid === cleanFrid);
+
+    if (!caseRecord) {
+      rateData.attempts += 1;
+      if (rateData.attempts >= 5) {
+        rateData.lockUntil = this.db.now() + 15 * 60 * 1000;
+      }
+      this.rateLimitMap.set(rateKey, rateData);
+
+      this.db.logAudit({
+        actorId: 'ANONYMOUS',
+        actorRole: 'BORROWER',
+        action: 'FRID_LOOKUP_FAILED',
+        targetType: 'CASE',
+        targetId: cleanFrid,
+        reason: `Invalid FRID lookup attempt (${rateData.attempts}/5)`
+      });
+
+      return this.sendError(res, 404, 'CASE_NOT_FOUND', 'Financing case not found for supplied reference', req.correlationId);
+    }
+
+    // Success - reset attempts
+    this.rateLimitMap.delete(rateKey);
+
+    const sessionCtx = this.authService.getSession(req);
+    if (sessionCtx && sessionCtx.user.role === ROLES.BORROWER) {
+      this.db.update('cases', 'case_id', caseRecord.case_id, {
+        primary_borrower_id: sessionCtx.user.user_id,
+        case_status: caseRecord.case_status === 'READY_FOR_INVITATION' ? 'BORROWER_LINKED' : caseRecord.case_status
+      });
+      caseRecord.primary_borrower_id = sessionCtx.user.user_id;
+    }
+
+    const userRole = sessionCtx ? sessionCtx.user.role : 'BORROWER';
+    const maskedCase = maskEntityFields(caseRecord, userRole);
+
+    return this.sendJson(res, 200, {
+      success: true,
+      case: maskedCase
+    });
+  }
+
+  async handleGetCaseByFrid(req, res, frid) {
+    const cleanFrid = String(frid || '').toUpperCase().trim();
+    const caseRecord = this.db.findOne('cases', c => c.frid === cleanFrid);
+    if (!caseRecord) {
+      return this.sendError(res, 404, 'CASE_NOT_FOUND', 'Case not found', req.correlationId);
+    }
+    return this.sendJson(res, 200, { case: maskEntityFields(caseRecord, 'BORROWER') });
+  }
+
+  async handleLookupCase(req, res, parsedUrl) {
+    const user = req.user;
+    const frid = parsedUrl.searchParams.get('frid');
+    if (!frid) return this.sendError(res, 400, 'FRID_REQUIRED', 'FRID query parameter required', req.correlationId);
+
+    const cleanFrid = frid.toUpperCase().trim();
+    const caseRecord = this.db.findOne('cases', c => c.frid === cleanFrid);
+    if (!caseRecord) return this.sendError(res, 404, 'CASE_NOT_FOUND', 'Case not found', req.correlationId);
+
+    enforceTenantIsolation(user, caseRecord.hospital_id, 'Case');
+    const maskedCase = maskEntityFields(caseRecord, user.role);
+
+    return this.sendJson(res, 200, { case: maskedCase });
+  }
+
+  async handleExportCases(req, res) {
+    const user = req.user;
+    if (!hasPermission(user.role, PERMISSIONS.EXPORT_REPORTS)) {
+      this.db.logAudit({
+        actorId: user.user_id,
+        actorRole: user.role,
+        action: 'DATA_EXPORT_DENIED',
+        targetType: 'REPORT',
+        targetId: 'CASES_EXPORT',
+        reason: 'User attempted data export without EXPORT_REPORTS permission'
+      });
+      throw new AccessDeniedError('User role is not authorized to export data records');
+    }
+
+    const cases = this.db.find('cases');
+    this.db.logAudit({
+      actorId: user.user_id,
+      actorRole: user.role,
+      action: 'DATA_EXPORTED',
+      targetType: 'REPORT',
+      targetId: 'CASES_EXPORT',
+      reason: `User exported ${cases.length} case records`
+    });
+
+    return this.sendJson(res, 200, { exportedAt: new Date(this.db.now()).toISOString(), count: cases.length, cases });
+  }
+
+  async handleRecordConsent(req, res) {
+    const user = req.user;
+    const { caseId, purposes, declined } = req.body;
+
+    if (declined) {
+      this.db.logAudit({
+        actorId: user.user_id,
+        actorRole: user.role,
+        action: 'BORROWER_DECLINED_CONSENT',
+        targetType: 'CASE',
+        targetId: caseId,
+        reason: 'Borrower declined statutory digital lending consent. Application aborted.'
+      });
+      return this.sendJson(res, 200, { success: true, status: 'DECLINED' });
+    }
+
+    const consentId = `CNS-${Date.now().toString(36).toUpperCase()}`;
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+
+    const consentRecord = {
+      consent_id: consentId,
+      case_id: caseId,
+      user_id: user.user_id,
+      purposes: purposes || {},
+      ip_address: ip,
+      granted_at: new Date(this.db.now()).toISOString(),
+      status: 'GRANTED',
+      future_sharing_stopped: false
+    };
+
+    this.db.insert('consents', consentRecord);
+
+    const caseRecord = this.db.findById('cases', 'case_id', caseId);
+    if (caseRecord && caseRecord.case_status === 'BORROWER_LINKED') {
+      this.db.update('cases', 'case_id', caseId, { case_status: 'CONSENT_GRANTED' });
+    }
+
+    this.db.logAudit({
+      actorId: user.user_id,
+      actorRole: user.role,
+      action: 'CONSENT_GRANTED',
+      targetType: 'CONSENT',
+      targetId: consentId,
+      reason: 'Granular unbundled consent granted for Credit Evaluation, Billing Verification, and Retention',
+      details: { purposes, ip }
+    });
+
+    return this.sendJson(res, 201, { success: true, consent: consentRecord });
+  }
+
+  async handleWithdrawConsent(req, res) {
+    const user = req.user;
+    const { caseId, purpose } = req.body;
+
+    const existingConsent = this.db.findOne('consents', c => c.case_id === caseId && c.user_id === user.user_id);
+    if (existingConsent) {
+      this.db.update('consents', 'consent_id', existingConsent.consent_id, {
+        status: 'WITHDRAWN',
+        future_sharing_stopped: true,
+        withdrawn_at: new Date(this.db.now()).toISOString()
+      });
+    }
+
+    this.db.logAudit({
+      actorId: user.user_id,
+      actorRole: user.role,
+      action: 'CONSENT_WITHDRAWN',
+      targetType: 'CASE',
+      targetId: caseId,
+      reason: `Borrower exercised statutory right to withdraw consent for: ${purpose || 'All optional purposes'}. Future data sharing stopped. Mandatory audit retention preserved.`
+    });
+
+    return this.sendJson(res, 200, {
+      success: true,
+      status: 'WITHDRAWN',
+      future_sharing_stopped: true,
+      statutoryRetentionNotice: 'Future data sharing discontinued. In compliance with RBI digital lending regulations, historical records are retained in immutable audit storage.'
+    });
+  }
+
+  async handleGetComplianceConsents(req, res) {
+    const user = req.user;
+    if (!hasPermission(user.role, PERMISSIONS.VIEW_IMMUTABLE_AUDIT)) {
+      throw new AccessDeniedError('Compliance role required');
+    }
+    const consents = this.db.find('consents');
+    return this.sendJson(res, 200, { consents });
+  }
+
+  async handleRequestStepUpOTP(req, res) {
+    const user = req.user;
+    const outcome = this.authService.requestStepUpOTP(user);
+    return this.sendJson(res, 200, outcome);
+  }
+
+  async handleGetUserJournal(req, res) {
+    const user = req.user;
+    const isFlagOn = this.db.data.config?.featureFlags?.expenseJournal === true;
+    if (!isFlagOn) {
+      return this.sendError(res, 404, 'FEATURE_DISABLED', 'Personal expense journal feature is disabled', req.correlationId);
+    }
+    if (user.role !== ROLES.BORROWER) {
+      throw new AccessDeniedError('Personal expense journal is strictly restricted to borrower role');
+    }
+    return this.sendJson(res, 200, { journalEntries: [] });
+  }
+
+  async handleDeactivateUser(req, res, targetUserId) {
+    const user = req.user;
+    if (!hasPermission(user.role, PERMISSIONS.MANAGE_USER_DIRECTORY)) {
+      throw new AccessDeniedError('Admin permission required to manage staff accounts');
+    }
+
+    const target = this.db.findById('users', 'user_id', targetUserId);
+    if (!target) return this.sendError(res, 404, 'USER_NOT_FOUND', 'User does not exist', req.correlationId);
+
+    this.db.update('users', 'user_id', targetUserId, { status: 'DEACTIVATED' });
+
+    const sessions = this.db.find('sessions', s => s.user_id === targetUserId && !s.revoked_at);
+    sessions.forEach(s => {
+      this.db.update('sessions', 'session_id', s.session_id, { revoked_at: new Date(this.db.now()).toISOString() });
+    });
+
+    this.sseHub.notifySessionRevoked(targetUserId);
+
+    this.db.logAudit({
+      actorId: user.user_id,
+      actorRole: user.role,
+      action: 'USER_DEACTIVATED',
+      targetType: 'USER',
+      targetId: targetUserId,
+      reason: `Staff account ${targetUserId} deactivated. All ${sessions.length} active sessions revoked.`
+    });
+
+    return this.sendJson(res, 200, {
+      success: true,
+      user_id: targetUserId,
+      status: 'DEACTIVATED',
+      revokedSessionsCount: sessions.length
+    });
+  }
+
+  async handleUnlockUser(req, res, targetUserId) {
+    const user = req.user;
+    if (!hasPermission(user.role, PERMISSIONS.MANAGE_USER_DIRECTORY)) {
+      throw new AccessDeniedError('Admin permission required to manage staff accounts');
+    }
+
+    this.db.update('users', 'user_id', targetUserId, {
+      locked_until: null,
+      failed_attempts: 0
+    });
+
+    return this.sendJson(res, 200, { success: true, message: `User ${targetUserId} unlocked` });
+  }
+
+  async handleSimulateIncident(req, res) {
+    const user = req.user;
+    if (!hasPermission(user.role, PERMISSIONS.VIEW_IMMUTABLE_AUDIT)) {
+      throw new AccessDeniedError('Platform Admin or Compliance role required');
+    }
+
+    const { incidentType, incident_type, affectedRecords, severity, detected_ip } = req.body;
+    const incId = `INC-${Date.now().toString(36).toUpperCase()}`;
+
+    const incident = {
+      incident_id: incId,
+      incident_type: incident_type || incidentType || 'UNAUTHORIZED_ACCESS_ATTEMPT',
+      affected_records: affectedRecords || 0,
+      reported_by: user.user_id,
+      severity: severity || 'HIGH',
+      status: 'INVESTIGATING',
+      containment_status: 'CONTAINED',
+      detected_ip: detected_ip || '127.0.0.1',
+      created_at: new Date(this.db.now()).toISOString()
+    };
+
+    this.db.insert('incidents', incident);
+
+    this.db.logAudit({
+      actorId: user.user_id,
+      actorRole: user.role,
+      action: 'SECURITY_INCIDENT_REPORTED',
+      targetType: 'INCIDENT',
+      targetId: incId,
+      reason: `Security incident workbench opened for assessment: ${incidentType}`
+    });
+
+    return this.sendJson(res, 201, { incident });
+  }
+
+  async handleGetReconciliation(req, res) {
+    const user = req.user;
+    if (!['OPS_MANAGER', 'PLATFORM_ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+      throw new AccessDeniedError('Operations role required for 3-way reconciliation');
+    }
+
+    const disbursements = this.db.find('disbursements');
+    const receipts = this.db.find('receipts');
+
+    const lenderTotal = disbursements.filter(d => d.status !== 'REVERSED').reduce((acc, d) => acc + (d.amount || 0), 0);
+    const hospitalTotal = receipts.filter(r => r.status === 'CONFIRMED').reduce((acc, r) => acc + (r.confirmed_amount || 0), 0);
+    const variance = lenderTotal - hospitalTotal;
+
+    return this.sendJson(res, 200, {
+      records: disbursements.map(d => ({
+        disbursement_id: d.disbursement_id,
+        amount: d.amount,
+        status: d.status
+      })),
+      lenderTransfers: lenderTotal,
+      hospitalCredits: hospitalTotal,
+      netVariance: variance,
+      batchDate: new Date(this.db.now()).toISOString().split('T')[0]
+    });
+  }
+
+  async handleResolveReconciliationDiscrepancy(req, res) {
+    const user = req.user;
+    if (!['OPS_MANAGER', 'PLATFORM_ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+      throw new AccessDeniedError('Operations role required');
+    }
+
+    const { exceptionId, evidenceRef } = req.body;
+    if (!evidenceRef || !evidenceRef.trim()) {
+      return this.sendError(res, 400, 'EVIDENCE_REQUIRED', 'Mandatory verified bank statement evidence or UTR reference is required to resolve discrepancy', req.correlationId);
+    }
+
+    this.db.update('exceptions', 'exception_id', exceptionId, {
+      status: 'RESOLVED',
+      resolved_by: user.user_id,
+      evidence_ref: evidenceRef.trim(),
+      resolved_at: new Date(this.db.now()).toISOString()
+    });
+
+    this.db.logAudit({
+      actorId: user.user_id,
+      actorRole: user.role,
+      action: 'DISCREPANCY_RESOLVED',
+      targetType: 'EXCEPTION',
+      targetId: exceptionId,
+      reason: `Exception resolved with mandatory verified evidence: ${evidenceRef.trim()}`
+    });
+
+    return this.sendJson(res, 200, {
+      success: true,
+      exceptionId,
+      status: 'RESOLVED',
+      evidenceRef: evidenceRef.trim()
+    });
+  }
+
+  async handleListTickets(req, res) {
+    const tickets = this.db.find('tickets');
+    return this.sendJson(res, 200, { tickets });
+  }
+
+  async handleCreateTicket(req, res) {
+    const user = req.user;
+    const { frid, subject, category, message, lenderCode, description, caseId } = req.body;
+    const tktId = generateTicketId();
+
+    const isLenderGrievance = category === 'LENDER_KFS_DISCREPANCY' || !!lenderCode;
+    const routed_to = isLenderGrievance ? 'NBFC_GRIEVANCE_DESK' : 'LSP_SUPPORT_DESK';
+
+    const newTicket = {
+      ticket_id: tktId,
+      case_id: caseId || '',
+      frid: frid || '',
+      user_id: user.user_id,
+      subject: subject || description || 'Grievance ticket',
+      category: category || 'GENERAL_QUERY',
+      message: message || description || '',
+      routed_to,
+      status: 'OPEN',
+      created_at: new Date(this.db.now()).toISOString()
+    };
+
+    this.db.insert('tickets', newTicket);
+
+    this.db.logAudit({
+      actorId: user.user_id,
+      actorRole: user.role,
+      action: 'SUPPORT_TICKET_CREATED',
+      targetType: 'TICKET',
+      targetId: tktId,
+      reason: `Support ticket opened: ${newTicket.subject}`
+    });
+
+    return this.sendJson(res, 201, { ticket: newTicket });
+  }
+
+  async handleGetProductKFS(req, res, productId) {
+    const prod = LENDER_PRODUCTS[productId] || LENDER_PRODUCTS['PROD-01'];
+    return this.sendJson(res, 200, {
+      productId: prod.productId,
+      lenderName: prod.lenderName,
+      kfsTemplate: prod.kfsTemplate,
+      aprDisplay: prod.aprDisplay,
+      coolingOffDays: prod.coolingOffDays,
+      keyFactDetails: {
+        totalInterest: '₹14,500',
+        processingFee: '₹1,500',
+        netDisbursedToHospital: '₹1,25,000',
+        repaymentTenorMonths: 12
+      }
+    });
+  }
+
   // --- Webhook Handling ---
   async handleWebhookRoute(req, res, pathname, rawBody) {
     const lenderCode = pathname.split('/')[3]?.toLowerCase();
@@ -869,6 +1386,15 @@ export class ProductServer {
         });
         this.sseHub.notifyCaseUpdate(caseRecord, 'SANCTION_APPROVED');
       }
+    } else if (normalized.eventType === 'UNDERWRITING_REJECTED') {
+      const caseRecord = this.db.findById('cases', 'case_id', normalized.caseId);
+      if (caseRecord) {
+        this.db.update('cases', 'case_id', normalized.caseId, {
+          case_status: 'UNDERWRITING_REJECTED',
+          rejection_reason: normalized.payload?.reason || 'Underwriting criteria not met'
+        });
+        this.sseHub.notifyCaseUpdate(caseRecord, 'UNDERWRITING_REJECTED');
+      }
     } else if (normalized.eventType === 'DISBURSEMENT_CONFIRMED') {
       const disbId = generateDisbursementId();
       this.db.insert('disbursements', {
@@ -892,8 +1418,15 @@ export class ProductServer {
       if (disb) {
         this.db.update('disbursements', 'disbursement_id', disb.disbursement_id, {
           status: 'REVERSED',
-          reversal_ref: normalized.payload.reversal_ref
+          reversal_ref: normalized.payload?.reversal_ref
         });
+      }
+      const caseRecord = this.db.findById('cases', 'case_id', normalized.caseId);
+      if (caseRecord) {
+        this.db.update('cases', 'case_id', normalized.caseId, {
+          case_status: 'DISBURSEMENT_FAILED'
+        });
+        this.sseHub.notifyCaseUpdate(caseRecord, 'DISBURSEMENT_FAILED');
       }
     }
 
@@ -911,6 +1444,14 @@ export class ProductServer {
 
   // --- Static Asset Serving & SPA History Fallback ---
   handleStaticRoute(req, res, pathname) {
+    if (pathname.startsWith('/shared/')) {
+      const rel = pathname.replace(/^\/shared\//, '');
+      const sharedPath = path.join(SHARED_DIR, rel);
+      if (sharedPath.startsWith(SHARED_DIR) && fs.existsSync(sharedPath)) {
+        return this.streamFile(req, res, sharedPath, 'application/javascript; charset=utf-8');
+      }
+    }
+
     let filePath = path.join(PUBLIC_DIR, pathname);
 
     // If root or missing extension, serve index.html (SPA History Fallback)

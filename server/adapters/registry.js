@@ -105,3 +105,4 @@ export function assertCapability(productId, capabilityKey) {
   }
   return true;
 }
+

@@ -164,3 +164,4 @@ function renderAdminSubview(subview, { auditLogs, user }) {
     </div>
   `;
 }
+

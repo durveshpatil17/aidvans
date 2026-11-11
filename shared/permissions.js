@@ -166,3 +166,4 @@ export const WORKSPACE_ROUTES = {
   [ROLES.BORROWER]: '/borrower/home',
   [ROLES.PATIENT_VIEWER]: '/borrower/patient'
 };
+

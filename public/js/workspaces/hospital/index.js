@@ -8,6 +8,7 @@ import { formatINR } from '../../../shared/money.js';
 import { maskAccount } from '../../../shared/validators.js';
 import { renderDataTable } from '../../components/datatable.js';
 import { toast } from '../../components/toast.js';
+import { modal } from '../../components/modal.js';
 
 export async function renderHospitalWorkspace(ctx, { router, session }) {
   const user = session.user;
@@ -54,14 +55,27 @@ export async function renderHospitalWorkspace(ctx, { router, session }) {
     document.querySelectorAll('[data-action="confirm-receipt"]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const disbId = btn.getAttribute('data-disb-id');
-        const utr = prompt('Enter Bank Electronic UTR (e.g. SBX-NEFT-99182):') || 'SBX-NEFT-99182';
-        const amount = prompt('Confirm Credited Amount in INR:', '125000') || 125000;
+        const utr = await modal.prompt({
+          title: 'Confirm Hospital Receipt',
+          message: 'Enter the electronic Bank UTR received in the hospital designated credit account:',
+          defaultValue: 'SBX-NEFT-99182',
+          inputLabel: 'Electronic UTR / Bank Reference Number'
+        });
+        if (!utr) return;
+
+        const amountStr = await modal.prompt({
+          title: 'Confirm Hospital Receipt Amount',
+          message: 'Confirm the exact credited amount in INR matching the bank entry:',
+          defaultValue: '125000',
+          inputLabel: 'Credited Amount (INR)'
+        });
+        if (!amountStr) return;
 
         try {
           await api.post('/api/v1/receipts/confirm', {
             disbursementId: disbId,
             transferUtr: utr,
-            confirmedAmount: amount
+            confirmedAmount: Number(amountStr)
           });
           toast.success('Hospital receipt successfully confirmed against UTR.');
           router.resolve();

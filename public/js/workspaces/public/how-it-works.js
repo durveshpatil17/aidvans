@@ -27,3 +27,4 @@ export function renderHowItWorks() {
     </div>
   `;
 }
+

@@ -142,7 +142,7 @@ export async function renderDemoConsole() {
           <h3>Simulated SMS Outbox</h3>
           <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Captures dispatched OTPs, case invitations, and step-up codes:</p>
           ${demoState.outboxes.sms.length === 0 ? '<p style="font-size:12px;color:var(--text-muted);">No SMS messages sent yet.</p>' : `
-            <div style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto;">
+            <div tabindex="0" role="region" aria-label="Simulated SMS Outbox List" style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto;">
               ${demoState.outboxes.sms.map(s => `
                 <div style="background:var(--bg-subtle);padding:10px;border-left:3px solid var(--primary);font-size:12px;">
                   <div style="display:flex;justify-content:space-between;color:var(--text-subtle);">
@@ -162,7 +162,7 @@ export async function renderDemoConsole() {
           <h3>Simulated Email Outbox</h3>
           <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Captures password resets and executive notifications:</p>
           ${demoState.outboxes.email.length === 0 ? '<p style="font-size:12px;color:var(--text-muted);">No emails dispatched yet.</p>' : `
-            <div style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto;">
+            <div tabindex="0" role="region" aria-label="Simulated Email Outbox List" style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto;">
               ${demoState.outboxes.email.map(e => `
                 <div style="background:var(--bg-subtle);padding:10px;border-left:3px solid var(--success);font-size:12px;">
                   <div style="display:flex;justify-content:space-between;color:var(--text-subtle);">
@@ -180,3 +180,4 @@ export async function renderDemoConsole() {
     </div>
   `;
 }
+

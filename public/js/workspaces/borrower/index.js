@@ -171,3 +171,4 @@ function renderBorrowerContent(subview, { activeCase, user }) {
     </div>
   `;
 }
+

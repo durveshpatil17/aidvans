@@ -81,3 +81,4 @@ This specification defines the visual standards, tokenized values, and plain ban
 ### 3.4 Modals & Toasts
 - Accessible keyboard-trapped modal dialogs with backdrop overlay (`rgba(0,0,0,0.5)`).
 - Plain corner toasts for non-blocking notifications, automatically clearing after 4 seconds.
+

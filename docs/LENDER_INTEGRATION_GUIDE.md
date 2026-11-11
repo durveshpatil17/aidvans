@@ -112,3 +112,4 @@ If the NBFC provides hosted or embedded journeys:
 - [ ] Direct hospital disbursement verified with ₹1 penny drop test to hospital beneficiary account.
 - [ ] Standardized Key Fact Statement (KFS) format validated against RBI circular.
 - [ ] Full regression suite passing 100% in staging environment.
+

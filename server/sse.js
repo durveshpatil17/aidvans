@@ -89,3 +89,4 @@ export class SSEHub extends EventEmitter {
     this.clients.clear();
   }
 }
+

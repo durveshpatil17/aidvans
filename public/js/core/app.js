@@ -137,3 +137,4 @@ session.checkCurrentSession().then(() => {
   }
   router.resolve();
 });
+

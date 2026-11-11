@@ -84,9 +84,13 @@ export function maskEntityFields(entity, viewerRole) {
     delete clone.kyc_records;
     delete clone.bureau_score;
     delete clone.kfs_archive;
+    delete clone.kfs;
+    delete clone.kfs_details;
     delete clone.borrower_bank_account;
-    if (clone.pan) clone.pan = maskPAN(clone.pan);
-    if (clone.aadhaar) clone.aadhaar = maskAadhaar(clone.aadhaar);
+    delete clone.borrower_pan;
+    delete clone.borrower_income;
+    if (clone.pan) delete clone.pan;
+    if (clone.aadhaar) delete clone.aadhaar;
     if (clone.phone) clone.phone = maskPhone(clone.phone);
   }
 

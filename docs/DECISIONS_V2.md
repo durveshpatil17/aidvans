@@ -70,3 +70,4 @@ In accordance with Section 0.1 of the Loop Engineering Prompt V2, all architectu
 
 ## ADR-V2-008: Strict Design System Compliance
 - **Decision**: Single CSS stylesheet (`public/css/app.css`) with 4px spacing tokens, white background (`#ffffff`), dark-slate text (`#111111`), single primary accent (`#1e3a8a`), zero box-shadows, zero CSS gradients, zero emojis, zero external icon sets, and zero marketing buzzwords.
+

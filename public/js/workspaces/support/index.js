@@ -46,3 +46,4 @@ export async function renderSupportWorkspace(ctx, { router, session }) {
     </div>
   `;
 }
+

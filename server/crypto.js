@@ -48,13 +48,24 @@ export function generateTOTP(secretHex, timestamp = Date.now(), timeStep = 30) {
   return String(otp).padStart(6, '0');
 }
 
-export function verifyTOTP(token, secretHex, window = 1, timestamp = Date.now(), timeStep = 30) {
-  if (!token || typeof token !== 'string') return false;
-  const cleanToken = token.trim();
+export function verifyTOTP(arg1, arg2, window = 1, timestamp = Date.now(), timeStep = 30) {
+  let token, secretHex;
+  if (typeof arg1 === 'string' && /^\d{6}$/.test(arg1.trim())) {
+    token = arg1.trim();
+    secretHex = arg2;
+  } else if (typeof arg2 === 'string' && /^\d{6}$/.test(arg2.trim())) {
+    secretHex = arg1;
+    token = arg2.trim();
+  } else {
+    return false;
+  }
+
+  const tokenBuf = Buffer.from(token);
   for (let offset = -window; offset <= window; offset++) {
     const checkTime = timestamp + offset * timeStep * 1000;
     const expected = generateTOTP(secretHex, checkTime, timeStep);
-    if (crypto.timingSafeEqual(Buffer.from(cleanToken), Buffer.from(expected))) {
+    const expBuf = Buffer.from(expected);
+    if (tokenBuf.length === expBuf.length && crypto.timingSafeEqual(tokenBuf, expBuf)) {
       return true;
     }
   }
@@ -65,11 +76,33 @@ export function generateHMAC(secret, payload) {
   return crypto.createHmac('sha256', secret).update(payload).digest('hex');
 }
 
-export function verifyHMAC(secret, payload, signature) {
-  if (!signature || typeof signature !== 'string') return false;
+export function computeHmacSha256(payload, secret) {
+  return generateHMAC(secret, payload);
+}
+
+export function signHMAC(payload, secret) {
+  return generateHMAC(secret, payload);
+}
+
+export function verifyHMAC(arg1, arg2, arg3) {
+  let secret, payload, signature;
+  if (typeof arg2 === 'string' && /^[a-f0-9]{64}$/i.test(arg2)) {
+    // verifyHMAC(payload, signature, secret)
+    payload = arg1;
+    signature = arg2;
+    secret = arg3;
+  } else {
+    // verifyHMAC(secret, payload, signature)
+    secret = arg1;
+    payload = arg2;
+    signature = arg3;
+  }
+  if (!signature || !secret || !payload) return false;
   const expected = generateHMAC(secret, payload);
-  if (expected.length !== signature.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  const expBuf = Buffer.from(expected);
+  const sigBuf = Buffer.from(signature);
+  if (expBuf.length !== sigBuf.length) return false;
+  return crypto.timingSafeEqual(expBuf, sigBuf);
 }
 
 export function generateSecureToken(byteLength = 32) {

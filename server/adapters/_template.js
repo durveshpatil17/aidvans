@@ -180,3 +180,4 @@ export class BaseLenderAdapter {
     throw new Error('Method normalizeWebhook must be implemented by concrete adapter');
   }
 }
+

@@ -23,12 +23,23 @@ export function computeCheckChar(input) {
   return ALPHANUMERIC[rem];
 }
 
-export function validateReferenceCheckChar(ref) {
-  if (!ref || typeof ref !== 'string') return false;
-  const parts = ref.split('-');
-  if (parts.length < 2) return false;
+export function isValidFRID(frid) {
+  if (!frid || typeof frid !== 'string') return false;
+  const clean = frid.toUpperCase().trim();
+  const parts = clean.split('-');
+  if (parts.length !== 3 || parts[0] !== 'HF' || parts[1].length !== 4 || parts[2].length !== 4) return false;
+  const base = `HF${parts[1]}${parts[2].slice(0, 3)}`;
+  const check = computeCheckChar(base);
+  return parts[2][3] === check;
+}
+
+export function isValidEntityId(id, prefix) {
+  if (!id || typeof id !== 'string') return false;
+  const clean = id.toUpperCase().trim();
+  const parts = clean.split('-');
+  if (parts.length < 2 || (prefix && parts[0] !== prefix)) return false;
   const providedCheck = parts[parts.length - 1].slice(-1);
-  const base = ref.slice(0, -1);
+  const base = clean.slice(0, -1);
   return computeCheckChar(base) === providedCheck;
 }
 

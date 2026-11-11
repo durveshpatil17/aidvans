@@ -238,3 +238,21 @@ export class Database {
     return entry;
   }
 }
+
+export function resetDb() {
+  const db = new Database();
+  return db.reset();
+}
+
+export function readDb() {
+  const db = new Database();
+  return db.data;
+}
+
+export function writeDb(data) {
+  const db = new Database();
+  db.data = data;
+  db.persist();
+  return db.data;
+}
+

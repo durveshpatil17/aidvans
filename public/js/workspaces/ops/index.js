@@ -6,6 +6,7 @@
 import { api } from '../../core/api.js';
 import { renderDataTable } from '../../components/datatable.js';
 import { toast } from '../../components/toast.js';
+import { modal } from '../../components/modal.js';
 
 export async function renderOpsWorkspace(ctx, { router, session }) {
   const user = session.user;
@@ -20,6 +21,25 @@ export async function renderOpsWorkspace(ctx, { router, session }) {
     const res = await api.get('/api/v1/cases');
     cases = res.cases || [];
   } catch {}
+
+  window.__ON_VIEW_MOUNTED__ = () => {
+    document.querySelectorAll('[data-action="resolve-exception"]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const evidenceRef = await modal.prompt({
+          title: 'Attach Mandatory Bank Evidence',
+          message: 'To resolve this credit discrepancy, attach verified bank statement / electronic UTR advice reference:',
+          defaultValue: 'STMT-HDFC-20261109-994',
+          inputLabel: 'Verified Evidence Reference / UTR'
+        });
+        if (!evidenceRef) return;
+
+        toast.success(`Discrepancy resolved with evidence reference: ${evidenceRef}`);
+        const box = btn.closest('.box');
+        if (box) box.style.borderColor = 'var(--success)';
+        btn.parentElement.innerHTML = `<span class="badge badge-emerald">Resolved with Evidence (${evidenceRef})</span>`;
+      });
+    });
+  };
 
   return `
     <div class="app-shell">
@@ -76,7 +96,7 @@ function renderOpsSubview(subview, { cases, user }) {
             <strong>Discrepancy EXC-2026-9912A:</strong> Credit Mismatch on CASE-2026-4019<br>
             <small style="color:var(--text-muted);">Reported: Credited ₹1,00,000 vs Expected ₹1,25,000 &bull; UTR: SBX-DISC-UTR</small>
           </div>
-          <button type="button" class="btn btn-primary btn-sm" onclick="alert('Attached bank statement evidence verified. Discrepancy resolved.')">Attach Evidence & Resolve</button>
+          <button type="button" class="btn btn-primary btn-sm" data-action="resolve-exception">Attach Evidence & Resolve</button>
         </div>
       </div>
     `;

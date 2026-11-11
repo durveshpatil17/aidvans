@@ -36,3 +36,4 @@ export function renderDataTable({ columns, data, emptyMessage = 'No records foun
     </div>
   `;
 }
+
