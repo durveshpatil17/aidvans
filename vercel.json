@@ -5,7 +5,9 @@
     { "source": "/webhooks/(.*)", "destination": "/api/index.js" },
     { "source": "/lender-a/(.*)", "destination": "/api/index.js" },
     { "source": "/lender-b/(.*)", "destination": "/api/index.js" },
-    { "source": "/((?!api|webhooks|lender-a|lender-b|css|js|data|docs|assets|favicon.ico).*)", "destination": "/index.html" }
+    { "source": "/hosted/(.*)", "destination": "/api/index.js" },
+    { "source": "/sandbox/(.*)", "destination": "/api/index.js" },
+    { "source": "/((?!api|webhooks|lender-a|lender-b|hosted|sandbox|css|js|shared|data|docs|assets|favicon.ico).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
@@ -17,7 +19,7 @@
       ]
     },
     {
-      "source": "/(css|js)/(.*)",
+      "source": "/(css|js|shared)/(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
       ]

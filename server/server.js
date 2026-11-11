@@ -18,6 +18,7 @@ import { hasPermission, enforceTenantIsolation, enforceBorrowerIsolation, maskEn
 import { ROLES, PERMISSIONS, WORKSPACE_ROUTES } from '../shared/permissions.js';
 import { LenderAAdapter } from './adapters/lenderA.js';
 import { LenderBAdapter } from './adapters/lenderB.js';
+import { LenderSandboxServer } from '../lender-sandbox/server.js';
 import { LENDER_PRODUCTS } from './adapters/registry.js';
 import { generateSecureToken, generateNumericOTP, generateTOTP } from './crypto.js';
 import {
@@ -143,6 +144,14 @@ export class ProductServer {
         // --- Webhook Routes (/webhooks/lender/*) ---
         if (pathname.startsWith('/webhooks/lender/')) {
           return await this.handleWebhookRoute(req, res, pathname, bodyRaw || JSON.stringify(body));
+        }
+
+        // --- Hosted Lender Journeys (/hosted/*) ---
+        if (pathname.startsWith('/hosted/')) {
+          if (!this.lenderSandbox) {
+            this.lenderSandbox = new LenderSandboxServer(0, '');
+          }
+          return this.lenderSandbox.handleRequest(req, res);
         }
 
         // --- Demo Console Route (/demo) ---

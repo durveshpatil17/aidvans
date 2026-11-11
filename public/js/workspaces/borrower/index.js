@@ -137,7 +137,7 @@ function renderBorrowerContent(subview, { activeCase, user }) {
         <p style="font-size:20px;font-weight:800;color:var(--primary);margin:4px 0;">₹1,25,000</p>
         <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px 0;">13.5% p.a. APR &bull; 12 Months Tenor &bull; ₹11,195/month</p>
 
-        <a href="http://localhost:3001/hosted/redirect/esign?return_url=http://localhost:3000/borrower/home&state=DEMO_STATE" class="btn btn-primary btn-sm" style="width:100%;">Review KFS & E-Sign with NBFC &rarr;</a>
+        <a href="/hosted/redirect/esign?return_url=/borrower/home&state=DEMO_STATE" class="btn btn-primary btn-sm" style="width:100%;">Review KFS & E-Sign with NBFC &rarr;</a>
       </div>
     `;
   }

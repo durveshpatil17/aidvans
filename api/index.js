@@ -27,10 +27,17 @@ export default async function handler(req, res) {
   const pathname = parsedUrl.pathname;
 
   // Route to Lender Sandbox if lender endpoints
-  if (pathname.startsWith('/lender-a/') || pathname.startsWith('/lender-b/') || pathname === '/lender-sandbox' || pathname.startsWith('/lender-sandbox/')) {
+  if (
+    pathname.startsWith('/lender-a/') ||
+    pathname.startsWith('/lender-b/') ||
+    pathname.startsWith('/hosted/') ||
+    pathname === '/lender-sandbox' ||
+    pathname.startsWith('/lender-sandbox/')
+  ) {
     return lenderSandbox.handleRequest(req, res);
   }
 
   // All other API, webhook, and BFF endpoints
   return productServer.handleRequest(req, res);
 }
+
