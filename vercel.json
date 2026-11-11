@@ -7,12 +7,12 @@
   },
   "rewrites": [
     { "source": "/", "destination": "/index.html" },
-    { "source": "/api/(.*)", "destination": "/api/index.js" },
-    { "source": "/webhooks/(.*)", "destination": "/api/index.js" },
-    { "source": "/lender-a/(.*)", "destination": "/api/index.js" },
-    { "source": "/lender-b/(.*)", "destination": "/api/index.js" },
-    { "source": "/hosted/(.*)", "destination": "/api/index.js" },
-    { "source": "/sandbox/(.*)", "destination": "/api/index.js" },
+    { "source": "/api/(.*)", "destination": "/api?__route=/api/$1" },
+    { "source": "/webhooks/(.*)", "destination": "/api?__route=/webhooks/$1" },
+    { "source": "/lender-a/(.*)", "destination": "/api?__route=/lender-a/$1" },
+    { "source": "/lender-b/(.*)", "destination": "/api?__route=/lender-b/$1" },
+    { "source": "/hosted/(.*)", "destination": "/api?__route=/hosted/$1" },
+    { "source": "/sandbox/(.*)", "destination": "/api?__route=/sandbox/$1" },
     { "source": "/((?!api|webhooks|lender-a|lender-b|hosted|sandbox|css|js|shared|data|docs|assets|favicon.ico).*)", "destination": "/index.html" }
   ],
   "headers": [

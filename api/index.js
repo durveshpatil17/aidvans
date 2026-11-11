@@ -25,7 +25,19 @@ export default async function handler(req, res) {
     const { productServer, lenderSandbox } = getServers(host);
 
     const parsedUrl = new URL(req.url, `http://${host}`);
-    const pathname = parsedUrl.pathname;
+
+    // Restore original path if routed through Vercel rewrite
+    if (parsedUrl.searchParams.has('__route')) {
+      const originalPath = parsedUrl.searchParams.get('__route');
+      parsedUrl.searchParams.delete('__route');
+      const qs = parsedUrl.searchParams.toString();
+      req.url = originalPath + (qs ? `?${qs}` : '');
+    } else if (req.headers['x-matched-path'] && !req.headers['x-matched-path'].startsWith('/api/index')) {
+      req.url = req.headers['x-matched-path'];
+    }
+
+    const effectiveUrl = new URL(req.url, `http://${host}`);
+    const pathname = effectiveUrl.pathname;
 
     // Route to Lender Sandbox if lender endpoints
     if (
@@ -56,4 +68,3 @@ export default async function handler(req, res) {
     }
   }
 }
-
