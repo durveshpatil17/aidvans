@@ -6,6 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "reset": "node data/reset.js",
     "test": "playwright test"
   },
   "devDependencies": {

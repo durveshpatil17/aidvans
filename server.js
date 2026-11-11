@@ -1,68 +1,51 @@
-import http from 'http';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+/**
+ * Root Server Entry Point
+ * Starts both Product BFF Server (Origin A) and Lender Sandbox Server (Origin B)
+ * Auto-detects free ports on collision. Never crashes with EADDRINUSE.
+ */
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { ProductServer } from './server/server.js';
+import { LenderSandboxServer } from './lender-sandbox/server.js';
 
-const PORT = process.env.PORT || 3000;
+const PRODUCT_PORT = Number(process.env.PORT) || 3000;
+const LENDER_PORT = Number(process.env.LENDER_PORT) || 3001;
 
-const MIME_TYPES = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'application/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon'
-};
+async function bootstrap() {
+  console.log('--- Starting Aidvans Healthcare Financing Platform ---');
 
-const server = http.createServer((req, res) => {
-  // Normalize URL to remove query strings
-  const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
-  let pathname = parsedUrl.pathname;
+  // 1. Start Lender Sandbox Server (Origin B)
+  const lenderSandbox = new LenderSandboxServer(LENDER_PORT, `http://localhost:${PRODUCT_PORT}`);
+  const actualLenderPort = await lenderSandbox.start();
 
-  if (pathname === '/') {
-    pathname = '/index.html';
-  }
+  // 2. Start Product BFF Server (Origin A)
+  const productServer = new ProductServer(PRODUCT_PORT, `http://localhost:${actualLenderPort}`);
+  const actualProductPort = await productServer.start();
 
-  if (pathname === '/favicon.ico') {
-    res.writeHead(204);
-    res.end();
-    return;
-  }
+  console.log('\n======================================================');
+  console.log(` Product BFF Origin:    http://localhost:${actualProductPort}/`);
+  console.log(` Lender Sandbox Origin: http://localhost:${actualLenderPort}/`);
+  console.log(` Demo Console URL:     http://localhost:${actualProductPort}/demo`);
+  console.log('======================================================\n');
 
-  const filePath = path.join(__dirname, pathname);
+  // Handle graceful termination
+  const shutdown = async () => {
+    console.log('\nGracefully shutting down servers...');
+    await Promise.all([productServer.stop(), lenderSandbox.stop()]);
+    process.exit(0);
+  };
 
-  // Security: prevent path traversal outside __dirname
-  if (!filePath.startsWith(__dirname)) {
-    res.writeHead(403, { 'Content-Type': 'text/plain' });
-    res.end('Forbidden');
-    return;
-  }
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 
-  fs.stat(filePath, (err, stats) => {
-    if (err || !stats.isFile()) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Not Found');
-      return;
-    }
+  return { productServer, lenderSandbox, actualProductPort, actualLenderPort };
+}
 
-    const ext = path.extname(filePath).toLowerCase();
-    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-
-    res.writeHead(200, {
-      'Content-Type': contentType,
-      'Cache-Control': 'no-cache, no-store, must-revalidate'
-    });
-
-    const stream = fs.createReadStream(filePath);
-    stream.pipe(res);
+// Only auto-start when executed directly from CLI
+if (process.argv[1] && process.argv[1].endsWith('server.js')) {
+  bootstrap().catch(err => {
+    console.error('Fatal Server Bootstrap Error:', err);
+    process.exit(1);
   });
-});
+}
 
-server.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}/`);
-});
+export { bootstrap, ProductServer, LenderSandboxServer };

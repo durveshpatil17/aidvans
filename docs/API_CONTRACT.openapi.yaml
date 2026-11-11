@@ -1,0 +1,345 @@
+openapi: 3.0.3
+info:
+  title: Aidvans Healthcare Financing LSP - BFF API Contract
+  version: 2.0.0
+  description: >
+    Canonical Backend-for-Frontend (BFF) HTTP API for the Aidvans Healthcare Financing
+    Lending Service Platform (LSP) operating under RBI Digital Lending Guidelines.
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local Product BFF Server (Origin A)
+
+paths:
+  /auth/login:
+    post:
+      summary: Workforce Single Sign-On / Password Login
+      description: Authenticates workforce personnel using User ID / Corporate Email and Password, followed by TOTP MFA.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userIdOrEmail, password]
+              properties:
+                userIdOrEmail:
+                  type: string
+                password:
+                  type: string
+                totpCode:
+                  type: string
+                workspace:
+                  type: string
+                  enum: [executive, hospital, ops, admin, compliance, support]
+      responses:
+        '200':
+          description: Session created or MFA code required
+        '401':
+          $ref: '#/components/responses/401Error'
+
+  /auth/borrower/request-otp:
+    post:
+      summary: Request Borrower Mobile SMS OTP
+      description: Initiates borrower authentication via phone number. Implements anti-enumeration.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone:
+                  type: string
+      responses:
+        '200':
+          description: OTP dispatched to SMS outbox
+
+  /auth/borrower/verify-otp:
+    post:
+      summary: Verify Borrower SMS OTP
+      description: Verifies numeric SMS OTP and establishes borrower session.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, otp]
+              properties:
+                phone:
+                  type: string
+                otp:
+                  type: string
+      responses:
+        '200':
+          description: Borrower session established
+        '401':
+          $ref: '#/components/responses/401Error'
+
+  /auth/logout:
+    post:
+      summary: Sign Out
+      description: Revokes active session and clears HttpOnly session cookie.
+      responses:
+        '200':
+          description: Logged out successfully
+
+  /auth/me:
+    get:
+      summary: Current Session Profile
+      description: Returns active session user profile, role, and workspace scope.
+      responses:
+        '200':
+          description: Active session info
+        '401':
+          $ref: '#/components/responses/401Error'
+
+  /public/overview:
+    get:
+      summary: Public Network Overview
+      description: Returns verified ecosystem statistics without authentication.
+      responses:
+        '200':
+          description: Network statistics
+
+  /public/hospitals:
+    get:
+      summary: Accredited Partner Hospitals
+      description: Lists accredited hospital network branches.
+      responses:
+        '200':
+          description: Hospital organizations
+
+  /public/lenders:
+    get:
+      summary: Regulated Lending Partners & Products
+      description: Lists regulated NBFC partners and statutory disclosures.
+      responses:
+        '200':
+          description: NBFC list and product capabilities
+
+  /cases:
+    get:
+      summary: List Financing Cases
+      description: Returns cases scoped to caller role and hospital tenant.
+      responses:
+        '200':
+          description: Array of financing cases
+        '401':
+          $ref: '#/components/responses/401Error'
+    post:
+      summary: Create Financing Case (Origination)
+      description: Executive desk creates case, separates patient/borrower, and generates FRID.
+      responses:
+        '201':
+          description: Case created with FRID and one-time invitation token
+        '403':
+          $ref: '#/components/responses/403Error'
+        '409':
+          $ref: '#/components/responses/409Error'
+
+  /cases/{caseId}:
+    get:
+      summary: Get Financing Case Detail
+      description: Returns comprehensive case details, demands, funding requests, and timeline.
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Scoped case record
+        '403':
+          $ref: '#/components/responses/403Error'
+        '404':
+          $ref: '#/components/responses/404Error'
+
+  /cases/{caseId}/close:
+    post:
+      summary: Close Facilitation Case
+      description: Closes the LSP facilitation case with explicit notice that lender loan is unaffected.
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Case closed
+
+  /demands:
+    post:
+      summary: Submit Payment Demand
+      description: Hospital or desk submits clinical demand with invoice.
+      responses:
+        '201':
+          description: Demand created
+        '403':
+          $ref: '#/components/responses/403Error'
+
+  /demands/{demandId}:
+    get:
+      summary: Get Demand Detail
+      parameters:
+        - name: demandId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Demand details
+
+  /funding-requests:
+    post:
+      summary: Create Funding Request
+      description: Binds demand to lender product.
+      responses:
+        '201':
+          description: Funding request created
+
+  /funding-requests/{reqId}/authorise:
+    post:
+      summary: Authorise Drawdown (Borrower Only)
+      description: Borrower authorises drawdown tranche with step-up OTP.
+      parameters:
+        - name: reqId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Funding request authorised
+
+  /receipts/confirm:
+    post:
+      summary: Confirm Hospital Receipt
+      description: Hospital independently confirms credit matching lender UTR.
+      responses:
+        '201':
+          description: Receipt confirmed
+
+  /receipts/mismatch:
+    post:
+      summary: Report Disbursement Mismatch
+      description: Hospital flags discrepancy between credited and expected amounts.
+      responses:
+        '201':
+          description: Discrepancy logged for Ops investigation
+
+  /admin/beneficiaries/request-change:
+    post:
+      summary: Request Hospital Bank Account Change (Maker)
+      description: Hospital or Admin maker requests account update.
+      responses:
+        '201':
+          description: Change request created in pending approval state
+
+  /admin/beneficiaries/{benefId}/approve:
+    post:
+      summary: Approve Hospital Bank Account Change (Checker)
+      description: Platform Admin dual-authorizes bank account update.
+      parameters:
+        - name: benefId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Bank account approved and verified
+        '403':
+          $ref: '#/components/responses/403Error'
+
+  /audit/logs:
+    get:
+      summary: Query Immutable Audit Trail
+      description: Admin or Compliance auditor queries append-only audit trail.
+      responses:
+        '200':
+          description: Audit log records
+        '403':
+          $ref: '#/components/responses/403Error'
+
+  /events:
+    get:
+      summary: Server-Sent Events Stream
+      description: Real-time event streaming for authenticated clients.
+      responses:
+        '200':
+          description: SSE event stream
+
+  /demo/state:
+    get:
+      summary: Demo State
+      responses:
+        '200':
+          description: State
+  /demo/advance-clock:
+    post:
+      summary: Advance Demo Clock
+      responses:
+        '200':
+          description: Advanced
+  /demo/reset:
+    post:
+      summary: Reset Demo Database
+      responses:
+        '200':
+          description: Reset
+
+components:
+  responses:
+    400Error:
+      description: Malformed payload or validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    401Error:
+      description: Authentication required or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    403Error:
+      description: Permission denied or multi-tenant hospital isolation violation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    404Error:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    409Error:
+      description: State conflict, optimistic concurrency version mismatch, or duplicate admission
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+
+  schemas:
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, correlationId]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            correlationId:
+              type: string
+            details:
+              type: object
