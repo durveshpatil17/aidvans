@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Healthcare Financing LSP — Enterprise Portal</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+  <!-- Enterprise Environment & Quick Switcher Utility Bar -->
+  <aside class="prototype-banner" aria-label="Prototype Role Switcher">
+    <div class="prototype-banner-left">
+      <span class="prototype-badge">Staging Sandbox</span>
+      <span id="current-user-context" style="font-size:0.8125rem;">Loading user...</span>
+    </div>
+    <div class="prototype-banner-controls">
+      <label for="role-switcher-select" style="font-size:0.75rem;">Switch Profile:</label>
+      <select id="role-switcher-select" data-testid="role-switcher-select" aria-label="Select prototype user persona">
+        <!-- Seed personas populated here -->
+      </select>
+      <button type="button" id="reset-demo-data" data-testid="reset-demo-data" class="btn btn-secondary btn-sm" style="color:#f8fafc;background:#334155;border-color:#475569;">
+        Reset Data
+      </button>
+      <a href="#/login" class="btn btn-sm btn-primary" style="background:#2563eb;border-color:#2563eb;color:#ffffff;" data-testid="btn-nav-login">
+        Sign In Portal
+      </a>
+    </div>
+  </aside>
+
+  <!-- Main Header -->
+  <header class="app-header">
+    <div class="header-inner">
+      <a href="#/" class="brand-wrapper">
+        <div class="brand-icon">H</div>
+        <div class="brand-info">
+          <span class="app-title">Healthcare Financing LSP</span>
+          <span class="app-subtitle">Assisted Desk & Partner Lending Network</span>
+        </div>
+      </a>
+      <nav id="main-nav" class="main-nav" aria-label="Main navigation">
+        <!-- Injected by router -->
+      </nav>
+      <div id="header-user-status" class="header-profile-chip" style="display:none;">
+        <span id="header-user-avatar" class="profile-avatar-circle">U</span>
+        <span id="header-user-name" style="font-weight:600;">User</span>
+        <button type="button" id="btn-sign-out" data-testid="btn-sign-out" style="background:none;border:none;color:#ef4444;font-size:0.75rem;font-weight:600;cursor:pointer;padding:2px 6px;">Sign Out</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Live Announcement for Accessibility -->
+  <div id="aria-announcer" class="sr-only" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);"></div>
+
+  <!-- Primary Main Content Landmark -->
+  <main id="app-root" class="app-container" tabindex="-1">
+    <div style="padding:40px 0;text-align:center;">
+      <p>Initializing application...</p>
+    </div>
+  </main>
+
+  <!-- App Footer -->
+  <footer class="app-footer">
+    <div class="footer-inner">
+      <div>
+        <p style="margin:0 0 4px 0;"><strong>Antigravity Healthcare Financing LSP</strong> — National Partner Network</p>
+        <p style="margin:0;font-size:0.75rem;">Operates strictly under RBI Digital Lending Guidelines. LSP never disburses loans or collects borrower fees.</p>
+      </div>
+      <div class="footer-links" aria-label="Footer links">
+        <a href="#/">Home</a>
+        <a href="#/how-it-works">How It Works</a>
+        <a href="#/hospitals">Partner Hospitals</a>
+        <a href="#/lenders">Lenders & Disclosures</a>
+        <a href="#/fees">Fees Explanation</a>
+        <a href="#/privacy">Privacy Notice</a>
+        <a href="#/grievance">Grievance Redressal</a>
+        <a href="#/login">Portal Sign In</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Application Bootstrap -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

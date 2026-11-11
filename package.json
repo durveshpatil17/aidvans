@@ -1,0 +1,16 @@
+{
+  "name": "aidvans",
+  "version": "1.0.0",
+  "description": "Healthcare Financing Lending Service Platform Prototype",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0",
+    "axe-core": "^4.10.2",
+    "lighthouse": "^12.3.0"
+  }
+}
