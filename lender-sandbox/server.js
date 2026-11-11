@@ -277,7 +277,7 @@ export class LenderSandboxServer {
         <div style="background:#e0f2fe;padding:12px;border-radius:4px;margin:16px 0;font-size:0.875rem;">
           Simulated Aadhaar OTP verification via UIDAI authentication service.
         </div>
-        <form action="${returnUrl || 'http://localhost:3000/borrower/home'}" method="GET">
+        <form action="${returnUrl || `${this.productUrl}/borrower/offers`}" method="GET">
           <input type="hidden" name="state" value="${stateToken || ''}">
           <input type="hidden" name="kyc_token" value="KYC_VERIFIED_${Date.now()}">
           <button type="submit" style="background:#2563eb;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-weight:600;width:100%;">
@@ -307,7 +307,7 @@ export class LenderSandboxServer {
         <div style="background:#fef3c7;padding:12px;border-radius:4px;margin:16px 0;font-size:0.875rem;">
           Mandatory KFS acknowledgement: Disbursed directly to verified hospital beneficiary account.
         </div>
-        <form action="${returnUrl || 'http://localhost:3000/borrower/home'}" method="GET">
+        <form action="${returnUrl || `${this.productUrl}/borrower/offers`}" method="GET">
           <input type="hidden" name="state" value="${stateToken || ''}">
           <input type="hidden" name="agreement_token" value="AGR_SIGNED_${Date.now()}">
           <button type="submit" style="background:#15803d;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-weight:600;width:100%;">

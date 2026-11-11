@@ -10,11 +10,15 @@ let productServerInstance = null;
 let lenderSandboxInstance = null;
 
 function getServers(host) {
+  const protocol = host && (host.startsWith('localhost') || host.startsWith('127.0.0.1')) ? 'http' : 'https';
+  const baseUrl = host ? `${protocol}://${host}` : 'http://localhost:3000';
+
   if (!productServerInstance) {
-    const protocol = host && (host.startsWith('localhost') || host.startsWith('127.0.0.1')) ? 'http' : 'https';
-    const baseUrl = host ? `${protocol}://${host}` : 'http://localhost:3000';
     productServerInstance = new ProductServer(3000, baseUrl);
     lenderSandboxInstance = new LenderSandboxServer(3001, baseUrl);
+  } else if (host) {
+    productServerInstance.lenderSandboxUrl = baseUrl;
+    lenderSandboxInstance.productUrl = baseUrl;
   }
   return { productServer: productServerInstance, lenderSandbox: lenderSandboxInstance };
 }
