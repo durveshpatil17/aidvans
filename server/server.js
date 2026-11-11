@@ -171,12 +171,32 @@ export class ProductServer {
       }
     };
 
-    // If body is already parsed by serverless runtime (e.g. Vercel)
-    if (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0) {
-      return executeRoute(req.body, JSON.stringify(req.body));
+    // Immediate execution for GET/HEAD, pre-ended streams, or pre-parsed bodies (e.g. Vercel Serverless)
+    const isStreamEnded = Boolean(req.readableEnded || req.complete);
+    const isNoBodyMethod = req.method === 'GET' || req.method === 'HEAD';
+    const hasParsedBody = req.body !== undefined && req.body !== null;
+
+    if (isNoBodyMethod || isStreamEnded || hasParsedBody) {
+      let parsedBody = {};
+      let bodyStr = '';
+      if (typeof req.body === 'object' && req.body !== null) {
+        parsedBody = req.body;
+        bodyStr = JSON.stringify(req.body);
+      } else if (typeof req.body === 'string' && req.body.trim()) {
+        bodyStr = req.body;
+        try {
+          parsedBody = JSON.parse(bodyStr);
+          if (typeof parsedBody !== 'object' || parsedBody === null) {
+            throw new Error('Payload must be a JSON object');
+          }
+        } catch {
+          return this.sendError(res, 400, 'INVALID_JSON', 'Malformed JSON in request payload', correlationId);
+        }
+      }
+      return executeRoute(parsedBody, bodyStr);
     }
 
-    // Read body stream for standard Node.js server
+    // Read body stream for standard Node.js server (POST/PUT/PATCH with unconsumed stream)
     let bodyStr = '';
     req.on('data', chunk => bodyStr += chunk);
     req.on('end', async () => {
@@ -192,6 +212,9 @@ export class ProductServer {
         }
       }
       return executeRoute(parsedBody, bodyStr);
+    });
+    req.on('error', (err) => {
+      return this.sendError(res, 400, 'REQUEST_STREAM_ERROR', err.message, correlationId);
     });
   }
 
@@ -965,7 +988,7 @@ export class ProductServer {
   }
 
   async handleLinkCase(req, res) {
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+    const ip = req.headers?.['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || '127.0.0.1';
     const { frid } = req.body || {};
 
     const rateKey = `rate:frid:${ip}`;
@@ -1099,7 +1122,7 @@ export class ProductServer {
     }
 
     const consentId = `CNS-${Date.now().toString(36).toUpperCase()}`;
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+    const ip = req.headers?.['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || '127.0.0.1';
 
     const consentRecord = {
       consent_id: consentId,

@@ -76,14 +76,7 @@ export class LenderSandboxServer {
       return;
     }
 
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', async () => {
-      let data = {};
-      try {
-        if (body) data = JSON.parse(body);
-      } catch {}
-
+    const dispatch = async (data) => {
       try {
         // --- Lender A REST Endpoints ---
         if (pathname === '/lender-a/api/applications/submit') {
@@ -143,6 +136,35 @@ export class LenderSandboxServer {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err.message }));
       }
+    };
+
+    // Immediate dispatch for GET/HEAD, pre-ended streams, or pre-parsed bodies
+    const isStreamEnded = Boolean(req.readableEnded || req.complete);
+    const isNoBodyMethod = req.method === 'GET' || req.method === 'HEAD';
+    const hasParsedBody = req.body !== undefined && req.body !== null;
+
+    if (isNoBodyMethod || isStreamEnded || hasParsedBody) {
+      let data = {};
+      if (typeof req.body === 'object' && req.body !== null) {
+        data = req.body;
+      } else if (typeof req.body === 'string' && req.body.trim()) {
+        try { data = JSON.parse(req.body); } catch {}
+      }
+      return dispatch(data);
+    }
+
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      let data = {};
+      try {
+        if (body) data = JSON.parse(body);
+      } catch {}
+      return dispatch(data);
+    });
+    req.on('error', (err) => {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
     });
   }
 

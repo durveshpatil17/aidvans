@@ -63,7 +63,7 @@ export class AuthService {
       workspace,
       csrf_token: csrfToken,
       user_agent: req.headers['user-agent'] || 'Unknown',
-      ip: req.socket.remoteAddress || '127.0.0.1',
+      ip: req.headers?.['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || '127.0.0.1',
       created_at: nowIso,
       last_active_at: nowIso,
       revoked_at: null

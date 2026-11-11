@@ -20,24 +20,40 @@ function getServers(host) {
 }
 
 export default async function handler(req, res) {
-  const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost';
-  const { productServer, lenderSandbox } = getServers(host);
+  try {
+    const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost';
+    const { productServer, lenderSandbox } = getServers(host);
 
-  const parsedUrl = new URL(req.url, `http://${host}`);
-  const pathname = parsedUrl.pathname;
+    const parsedUrl = new URL(req.url, `http://${host}`);
+    const pathname = parsedUrl.pathname;
 
-  // Route to Lender Sandbox if lender endpoints
-  if (
-    pathname.startsWith('/lender-a/') ||
-    pathname.startsWith('/lender-b/') ||
-    pathname.startsWith('/hosted/') ||
-    pathname === '/lender-sandbox' ||
-    pathname.startsWith('/lender-sandbox/')
-  ) {
-    return lenderSandbox.handleRequest(req, res);
+    // Route to Lender Sandbox if lender endpoints
+    if (
+      pathname.startsWith('/lender-a/') ||
+      pathname.startsWith('/lender-b/') ||
+      pathname.startsWith('/hosted/') ||
+      pathname === '/lender-sandbox' ||
+      pathname.startsWith('/lender-sandbox/')
+    ) {
+      return await lenderSandbox.handleRequest(req, res);
+    }
+
+    // All other API, webhook, and BFF endpoints
+    return await productServer.handleRequest(req, res);
+  } catch (err) {
+    console.error('Unhandled Vercel serverless function exception:', err);
+    if (!res.headersSent) {
+      res.writeHead(500, {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store'
+      });
+      res.end(JSON.stringify({
+        error: {
+          code: 'SERVERLESS_FUNCTION_ERROR',
+          message: err.message || 'Internal Serverless Execution Error'
+        }
+      }));
+    }
   }
-
-  // All other API, webhook, and BFF endpoints
-  return productServer.handleRequest(req, res);
 }
 

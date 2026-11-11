@@ -8,6 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { hashPassword } from './crypto.js';
+import { SEED_DATA } from '../data/seed.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,8 +38,19 @@ export class Database {
   }
 
   initFromSeed() {
-    const rawSeed = fs.readFileSync(this.seedPath, 'utf8');
-    const data = JSON.parse(rawSeed);
+    let data = null;
+    try {
+      if (this.seedPath && fs.existsSync(this.seedPath)) {
+        const rawSeed = fs.readFileSync(this.seedPath, 'utf8');
+        data = JSON.parse(rawSeed);
+      }
+    } catch (err) {
+      console.warn('Could not read seed from file, using bundled SEED_DATA:', err.message);
+    }
+
+    if (!data) {
+      data = JSON.parse(JSON.stringify(SEED_DATA));
+    }
 
     // Ensure all required collections exist
     data.cases = data.cases || [];
@@ -96,11 +108,18 @@ export class Database {
   }
 
   persist() {
-    const tempPath = `${this.dbPath}.tmp.${Date.now()}.${Math.random().toString(36).slice(2, 6)}`;
-    const jsonStr = JSON.stringify(this.data, null, 2);
-    fs.mkdirSync(path.dirname(this.dbPath), { recursive: true });
-    fs.writeFileSync(tempPath, jsonStr, 'utf8');
-    fs.renameSync(tempPath, this.dbPath);
+    try {
+      const tempPath = `${this.dbPath}.tmp.${Date.now()}.${Math.random().toString(36).slice(2, 6)}`;
+      const jsonStr = JSON.stringify(this.data, null, 2);
+      const dir = path.dirname(this.dbPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(tempPath, jsonStr, 'utf8');
+      fs.renameSync(tempPath, this.dbPath);
+    } catch (err) {
+      console.warn('Failed to persist db.json:', err.message);
+    }
   }
 
   reset() {
