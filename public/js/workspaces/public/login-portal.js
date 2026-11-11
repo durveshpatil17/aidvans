@@ -133,7 +133,7 @@ export function renderAllLoginsPortal({ router, session }) {
               <div>
                 <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
                   <span class="badge ${p.badgeClass}">${p.badge}</span>
-                  <code style="font-size:11px;color:var(--text-subtle);background:#f1f5f9;padding:2px 6px;">${p.userId}</code>
+                  <code style="font-size:11px;color:#334155;background:#f1f5f9;padding:2px 6px;border:1px solid var(--border-light);">${p.userId}</code>
                 </div>
                 <h3 style="font-size:17px;margin:0 0 6px 0;color:var(--text-main);">${p.name}</h3>
                 <p style="font-size:13px;color:var(--text-muted);line-height:1.4;margin:0 0 16px 0;">${p.description}</p>
@@ -150,3 +150,4 @@ export function renderAllLoginsPortal({ router, session }) {
     </div>
   `;
 }
+

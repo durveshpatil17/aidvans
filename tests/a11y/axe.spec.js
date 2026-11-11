@@ -17,6 +17,7 @@ test.describe('Tier 3 Accessibility: Axe-core Zero Violations & Keyboard Navigat
     { name: 'Admin Login', url: '/admin/login' },
     { name: 'Compliance Login', url: '/compliance/login' },
     { name: 'Support Login', url: '/support/login' },
+    { name: 'Login Portal', url: '/login' },
     { name: 'Demo Console', url: '/demo' }
   ];
 

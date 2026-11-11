@@ -1,5 +1,6 @@
 /**
  * Customer Support Login (/support/login)
+ * Direct access without OTP authentication
  */
 
 import { api } from '../../core/api.js';
@@ -62,9 +63,9 @@ export function renderWorkspaceLogin({ router, session }) {
 
         <div class="box" style="margin-bottom:20px;padding:16px;background:var(--bg-subtle);border:1px solid var(--border-light);border-radius:2px;text-align:center;">
           <button type="button" id="btn-quick-login" class="btn btn-primary" style="width:100%;font-weight:700;padding:10px;">
-            One-Click Direct Sign In as Neha Kulkarni &rarr;
+            Sign In as Neha Kulkarni (1-Click Access) &rarr;
           </button>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Instant access to Customer Support Desk (Zero password/OTP required)</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Instant access to Customer Support Desk</div>
         </div>
 
         <div style="display:flex;align-items:center;margin:16px 0;text-align:center;color:var(--text-subtle);font-size:12px;">
@@ -82,13 +83,12 @@ export function renderWorkspaceLogin({ router, session }) {
             <label for="password">Password</label>
             <input type="password" id="password" required value="Password@123" class="form-input">
           </div>
-          <button type="submit" class="btn btn-primary" style="width:100%;margin-top:8px;">Sign In to Support</button>
+          <button type="submit" class="btn btn-primary" style="width:100%;margin-top:8px;">Sign In to Support &rarr;</button>
         </form>
         <div style="margin-top:20px;border-top:1px solid var(--border-light);padding-top:16px;text-align:center;">
-          <a href="/" style="font-size:13px;color:var(--text-muted);text-decoration:none;">&larr; Aidvans Home</a>
+          <a href="/" style="font-size:13px;color:var(--text-muted);text-decoration:none;">&larr; Return to Aidvans Home</a>
         </div>
       </div>
     </div>
   `;
 }
-

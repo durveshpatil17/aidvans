@@ -2,39 +2,23 @@ import { test, expect } from '@playwright/test';
 import { generateTOTP } from '../../server/crypto.js';
 
 test.describe('Tier 2 API: Workforce & Borrower Authentication', () => {
-  test('Workforce login requires TOTP when enrolled and returns session cookie', async ({ request }) => {
-    // 1. Password only -> MFA required
-    const mfaRes = await request.post('/api/v1/auth/login', {
+  test('Workforce login authenticates directly with credentials without OTP requirement', async ({ request }) => {
+    // 1. Password only -> Direct successful login
+    const loginRes = await request.post('/api/v1/auth/login', {
       data: {
         userIdOrEmail: 'USR-PRIYA',
         password: 'Password@123',
         workspace: 'executive'
       }
     });
-    expect(mfaRes.status()).toBe(200);
-    const mfaData = await mfaRes.json();
-    expect(mfaData.mfa_required).toBe(true);
-
-    // 2. Supply TOTP code
-    const totpSecret = Buffer.from('USR-PRIYA'.padEnd(16, '0')).toString('hex').slice(0, 32);
-    const totp = generateTOTP(totpSecret);
-
-    const fullLogin = await request.post('/api/v1/auth/login', {
-      data: {
-        userIdOrEmail: 'USR-PRIYA',
-        password: 'Password@123',
-        totpCode: totp,
-        workspace: 'executive'
-      }
-    });
-    expect(fullLogin.status()).toBe(200);
-    const data = await fullLogin.json();
+    expect(loginRes.status()).toBe(200);
+    const data = await loginRes.json();
     expect(data.success).toBe(true);
     expect(data.user.user_id).toBe('USR-PRIYA');
     expect(data.workspaceRoute).toBe('/executive/dashboard');
 
     // Check Set-Cookie header contains aidvans_session with HttpOnly
-    const cookieHeader = fullLogin.headers()['set-cookie'] || '';
+    const cookieHeader = loginRes.headers()['set-cookie'] || '';
     expect(cookieHeader).toContain('aidvans_session=');
     expect(cookieHeader.toLowerCase()).toContain('httponly');
     expect(cookieHeader.toLowerCase()).toContain('samesite=lax');
@@ -54,6 +38,18 @@ test.describe('Tier 2 API: Workforce & Borrower Authentication', () => {
     expect(logoutRes.status()).toBe(200);
     const clearCookie = logoutRes.headers()['set-cookie'] || '';
     expect(clearCookie).toContain('Max-Age=0');
+  });
+
+  test('Borrower direct login authenticates with mobile number without OTP requirement', async ({ request }) => {
+    const res = await request.post('/api/v1/auth/borrower/login', {
+      data: { phone: '+91 98000 00011' }
+    });
+    expect(res.status()).toBe(200);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(data.workspaceRoute).toBe('/borrower/home');
+    const cookieHeader = res.headers()['set-cookie'] || '';
+    expect(cookieHeader).toContain('aidvans_session=');
   });
 
   test('One-click quick login authenticates and sets session cookie without password or OTP', async ({ request }) => {

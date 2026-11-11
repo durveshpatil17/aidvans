@@ -186,17 +186,9 @@ export class AuthService {
       throw new Error('Invalid credentials or unauthorized workspace');
     }
 
-    // Check TOTP MFA
-    if (user.mfa_enrolled) {
-      if (!totpCode) {
-        const liveTotp = generateTOTP(user.totp_secret, now);
-        return {
-          mfa_required: true,
-          user_id: user.user_id,
-          demo_totp: liveTotp,
-          message: 'Please enter your 6-digit authenticator code (TOTP)'
-        };
-      }
+    // OTP/MFA requirement removed for now per evaluation request
+    // If a totpCode is provided, verify it, but never block login if missing
+    if (totpCode) {
       const isTotpValid = verifyTOTP(totpCode, user.totp_secret, 1, now);
       if (!isTotpValid) {
         throw new Error('Invalid MFA authenticator code. Check your clock or code.');
@@ -218,6 +210,43 @@ export class AuthService {
         branch_id: user.branch_id,
         force_password_change: user.force_password_change
       }
+    };
+  }
+
+  // --- Borrower Direct Login (No OTP required) ---
+  loginBorrowerDirect({ phone, req }) {
+    const cleanPhone = String(phone || '').trim();
+    if (!cleanPhone) throw new Error('Valid mobile number required');
+
+    let user = this.db.findOne('users', u =>
+      u.role === ROLES.BORROWER &&
+      (u.phone === cleanPhone || (u.phone && cleanPhone && u.phone.replace(/\D/g, '') === cleanPhone.replace(/\D/g, '')))
+    );
+
+    // If borrower user doesn't exist yet, seed a profile
+    if (!user) {
+      user = this.db.insert('users', {
+        user_id: `BOR-${Date.now().toString(36).toUpperCase()}`,
+        name: 'Borrower',
+        phone: cleanPhone,
+        email: `${cleanPhone.replace(/\D/g, '')}@borrower.mock`,
+        role: ROLES.BORROWER,
+        status: 'ACTIVE',
+        context: 'Self-registered borrower session'
+      });
+    }
+
+    const session = this.createSession(user, 'borrower', req);
+    return {
+      session,
+      user: {
+        user_id: user.user_id,
+        name: user.name,
+        phone: user.phone,
+        email: user.email,
+        role: user.role
+      },
+      workspaceRoute: '/borrower/home'
     };
   }
 

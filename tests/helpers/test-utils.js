@@ -109,16 +109,22 @@ export async function loginBorrower(page, phone = '+91 98000 00011') {
   await page.goto('/borrower/login');
   await page.waitForLoadState('domcontentloaded');
 
-  await page.fill('#borrower-phone', phone);
-  await page.click('#btn-send-otp');
+  const phoneInput = page.locator('#borrower-phone');
+  if (await phoneInput.isVisible()) {
+    await phoneInput.fill(phone);
+  }
+  const submitBtn = page.locator('#btn-borrower-submit, button[type="submit"], #btn-send-otp, #btn-quick-borrower');
+  await submitBtn.first().click();
   await page.waitForTimeout(300);
 
-  const sms = getLatestSMS(phone);
-  const otp = sms?.otp || '123456';
+  const otpInput = page.locator('#borrower-otp');
+  if (await otpInput.isVisible()) {
+    const sms = getLatestSMS(phone);
+    const otp = sms?.otp || '123456';
+    await otpInput.fill(otp);
+    await page.click('#btn-verify-otp');
+  }
 
-  await page.fill('#borrower-otp', otp);
-  await page.click('#btn-verify-otp');
-  await page.waitForTimeout(300);
   await page.waitForURL(url => !url.pathname.endsWith('/login'), { timeout: 8000 });
 }
 
