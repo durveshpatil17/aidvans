@@ -41,7 +41,6 @@ const session = new SessionManager(
 const sse = new SSEClient((eventType, payload) => {
   if (eventType === 'case_updated') {
     toast.info(`Case ${payload.frid || payload.case_id} updated: ${payload.action}`);
-    // If the active view has a refresh handler, invoke it
     if (typeof window.__REFRESH_ACTIVE_VIEW__ === 'function') {
       window.__REFRESH_ACTIVE_VIEW__();
     }
@@ -51,37 +50,40 @@ const sse = new SSEClient((eventType, payload) => {
   }
 });
 
+// Cache buster token to guarantee fresh assets in browser
+const b = `?v=${Date.now()}`;
+
 // --- Register Core Views ---
 
 // Public Pages
 router.register('/', async () => {
-  const { renderPublicHome } = await import('../workspaces/public/home.js');
+  const { renderPublicHome } = await import(`../workspaces/public/home.js${b}`);
   return renderPublicHome();
 }, { title: 'Healthcare Financing LSP — National Network' });
 
 router.register('/how-it-works', async () => {
-  const { renderHowItWorks } = await import('../workspaces/public/how-it-works.js');
+  const { renderHowItWorks } = await import(`../workspaces/public/how-it-works.js${b}`);
   return renderHowItWorks();
 }, { title: 'How It Works — Digital Healthcare Financing' });
 
 router.register('/privacy', async () => {
-  const { renderPrivacy } = await import('../workspaces/public/privacy.js');
+  const { renderPrivacy } = await import(`../workspaces/public/privacy.js${b}`);
   return renderPrivacy();
 }, { title: 'Data Privacy Notice' });
 
 router.register('/grievance', async () => {
-  const { renderGrievance } = await import('../workspaces/public/grievance.js');
+  const { renderGrievance } = await import(`../workspaces/public/grievance.js${b}`);
   return renderGrievance();
 }, { title: 'Grievance Redressal Mechanism' });
 
 router.register('/status', async () => {
-  const { renderStatus } = await import('../workspaces/public/status.js');
+  const { renderStatus } = await import(`../workspaces/public/status.js${b}`);
   return renderStatus();
 }, { title: 'System Status & Uptime' });
 
 // Unified One-Click Logins Portal
 router.register('/login', async () => {
-  const { renderAllLoginsPortal } = await import('../workspaces/public/login-portal.js');
+  const { renderAllLoginsPortal } = await import(`../workspaces/public/login-portal.js${b}`);
   return renderAllLoginsPortal({ router, session });
 }, { title: 'One-Click Workspace Access Portal' });
 
@@ -89,50 +91,50 @@ router.register('/login', async () => {
 const WORKSPACES = ['executive', 'hospital', 'borrower', 'ops', 'admin', 'compliance', 'support'];
 for (const ws of WORKSPACES) {
   router.register(`/${ws}/login`, async ({ pathname }) => {
-    const { renderWorkspaceLogin } = await import(`../workspaces/${ws}/login.js`);
+    const { renderWorkspaceLogin } = await import(`../workspaces/${ws}/login.js${b}`);
     return renderWorkspaceLogin({ router, session });
   }, { title: `${ws.charAt(0).toUpperCase() + ws.slice(1)} Workspace Login` });
 }
 
 // Workspace Routers (Loaded Dynamically)
 router.register('/executive/:view', async (ctx) => {
-  const { renderExecutiveWorkspace } = await import('../workspaces/executive/index.js');
+  const { renderExecutiveWorkspace } = await import(`../workspaces/executive/index.js${b}`);
   return renderExecutiveWorkspace(ctx, { router, session });
 }, { title: 'Executive Desk Workspace', workspace: 'executive' });
 
 router.register('/hospital/:view', async (ctx) => {
-  const { renderHospitalWorkspace } = await import('../workspaces/hospital/index.js');
+  const { renderHospitalWorkspace } = await import(`../workspaces/hospital/index.js${b}`);
   return renderHospitalWorkspace(ctx, { router, session });
 }, { title: 'Hospital Billing Portal', workspace: 'hospital' });
 
 router.register('/borrower/:view', async (ctx) => {
-  const { renderBorrowerWorkspace } = await import('../workspaces/borrower/index.js');
+  const { renderBorrowerWorkspace } = await import(`../workspaces/borrower/index.js${b}`);
   return renderBorrowerWorkspace(ctx, { router, session });
 }, { title: 'Borrower Mobile Journey', workspace: 'borrower' });
 
 router.register('/ops/:view', async (ctx) => {
-  const { renderOpsWorkspace } = await import('../workspaces/ops/index.js');
+  const { renderOpsWorkspace } = await import(`../workspaces/ops/index.js${b}`);
   return renderOpsWorkspace(ctx, { router, session });
 }, { title: 'Central Operations Workbench', workspace: 'ops' });
 
 router.register('/admin/:view', async (ctx) => {
-  const { renderAdminWorkspace } = await import('../workspaces/admin/index.js');
+  const { renderAdminWorkspace } = await import(`../workspaces/admin/index.js${b}`);
   return renderAdminWorkspace(ctx, { router, session });
 }, { title: 'Platform Administration', workspace: 'admin' });
 
 router.register('/compliance/:view', async (ctx) => {
-  const { renderComplianceWorkspace } = await import('../workspaces/compliance/index.js');
+  const { renderComplianceWorkspace } = await import(`../workspaces/compliance/index.js${b}`);
   return renderComplianceWorkspace(ctx, { router, session });
 }, { title: 'Compliance & Audit Console', workspace: 'compliance' });
 
 router.register('/support/:view', async (ctx) => {
-  const { renderSupportWorkspace } = await import('../workspaces/support/index.js');
+  const { renderSupportWorkspace } = await import(`../workspaces/support/index.js${b}`);
   return renderSupportWorkspace(ctx, { router, session });
 }, { title: 'Customer Support Workbench', workspace: 'support' });
 
 // Demo Console (/demo)
 router.register('/demo', async () => {
-  const { renderDemoConsole } = await import('../workspaces/demo/index.js');
+  const { renderDemoConsole } = await import(`../workspaces/demo/index.js${b}`);
   return renderDemoConsole();
 }, { title: 'Developer & Test Demo Console' });
 
@@ -143,4 +145,3 @@ session.checkCurrentSession().then(() => {
   }
   router.resolve();
 });
-

@@ -15,7 +15,7 @@ export async function renderBorrowerWorkspace(ctx, { router, session }) {
       <div style="padding:48px 24px;text-align:center;max-width:440px;margin:40px auto;">
         <h2>Borrower Authentication Required</h2>
         <p style="color:var(--text-muted);">Please sign in with your mobile number to view your financing application.</p>
-        <a href="/borrower/login" class="btn btn-primary btn-sm">Sign In via Mobile OTP</a>
+        <a href="/borrower/login" class="btn btn-primary btn-sm">Sign In to Case &rarr;</a>
       </div>
     `;
   }

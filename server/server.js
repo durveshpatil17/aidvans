@@ -1542,25 +1542,25 @@ export class ProductServer {
     const raw = fs.readFileSync(filePath);
     const acceptEncoding = req.headers['accept-encoding'] || '';
 
-    // Cache policy: index.html has no-store; hashed assets have long cache
-    const isHtml = contentType.includes('html');
-    const cacheHeader = isHtml
-      ? 'no-store, no-cache, must-revalidate'
-      : 'public, max-age=31536000, immutable';
+    // Cache policy: Never cache in development/evaluation so client updates take effect immediately
+    const cacheHeader = 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0';
+
+    const headers = {
+      'Content-Type': contentType,
+      'Cache-Control': cacheHeader,
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    };
 
     if (acceptEncoding.includes('gzip')) {
       const gzipped = zlib.gzipSync(raw);
       res.writeHead(200, {
-        'Content-Type': contentType,
-        'Content-Encoding': 'gzip',
-        'Cache-Control': cacheHeader
+        ...headers,
+        'Content-Encoding': 'gzip'
       });
       res.end(gzipped);
     } else {
-      res.writeHead(200, {
-        'Content-Type': contentType,
-        'Cache-Control': cacheHeader
-      });
+      res.writeHead(200, headers);
       res.end(raw);
     }
   }
